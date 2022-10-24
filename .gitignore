@@ -1,0 +1,7 @@
+*.o
+*.so
+*.out
+*.out.memtrace
+*.log
+**/.vscode/
+**/.idea/

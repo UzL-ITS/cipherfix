@@ -1,0 +1,18 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StaticInstrumentation", "StaticInstrumentation\StaticInstrumentation.csproj", "{C4D0F88F-80B1-4F2D-9A72-ABCE9F0DA866}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElfTools", "ElfTools/src/ElfTools/ElfTools.csproj", "{53AEB2E1-40C8-44B8-AC0C-25BE90D1B7F8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C4D0F88F-80B1-4F2D-9A72-ABCE9F0DA866}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4D0F88F-80B1-4F2D-9A72-ABCE9F0DA866}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4D0F88F-80B1-4F2D-9A72-ABCE9F0DA866}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4D0F88F-80B1-4F2D-9A72-ABCE9F0DA866}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

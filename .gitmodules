@@ -1,0 +1,3 @@
+[submodule "static-instrumentation/ElfTools"]
+	path = static-instrumentation/ElfTools
+	url = https://github.com/JanWichelmann/ElfTools.git
