@@ -137,6 +137,7 @@ To analyze, instrument and run the examples, execute the following steps:
    Allocation functions for `tweetnacl-eddsa`:
    - `malloc@plt` at low address in `app` (usually `+1180`)
    - `malloc` in `libc.so.6` (usually `+22310`)
+
    For example:
    ```
    Mm 0000555a7096f180
@@ -148,6 +149,7 @@ To analyze, instrument and run the examples, execute the following steps:
    - `CRYPTO_malloc@plt` at low address in `app` (usually `+1250`)
    - `malloc` in `libc.so.6` (usually `+22310`)
    - `CRYPTO_malloc@plt` in `libcrypto.so.1.1` (usually `+17baa0`)
+
    For example:
    ```
    Mm 0000561b18e5a230
@@ -164,7 +166,7 @@ To analyze, instrument and run the examples, execute the following steps:
 
 
 ## Replacing Framework Modules
-It is possible to extend or replace the taint tracking and preprocessing modules by adding own tools that produce a suitable trace file format.
+It is possible to extend or replace the taint tracking and preprocessing modules by adding own tools that produce suitable trace files.
 
 For building or using single modules, please use the provided `build.sh` and `run.sh` scripts in the respective subdirectories, or replace them by your own.
 
@@ -182,7 +184,7 @@ To customize a module, please keep in mind that the static variable detection ha
 ## Paper
 
 For an extended description of the framework, please refer to our paper:
-- Jan Wichelmann, Anna Pätschke, Luca Wilke, and Thomas Eisenbarth. 2022. **Cipherfix: Mitigating Ciphertext Side-Channel Attacks in Software**. [arXiv](https://arxiv.org/abs/2210.xxxxx)
+- Jan Wichelmann, Anna Pätschke, Luca Wilke, and Thomas Eisenbarth. 2022. **Cipherfix: Mitigating Ciphertext Side-Channel Attacks in Software**. [arXiv](https://arxiv.org/abs/2210.13124)
 
 For more background and a description of ciphertext side-channel attacks see
 - Mengyuan Li, Luca Wilke, Jan Wichelmann, Thomas Eisenbarth, Radu Teodorescu and Yinqian Zhang. 2022. **A Systematic Look at Ciphertext Side Channels on AMD SEV-SNP**. In 2022 IEEE Symposium on Security and Privacy (S&P '22). ([DOI](https://doi.org/10.1109/SP46214.2022.9833768))
