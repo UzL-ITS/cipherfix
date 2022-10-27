@@ -112,10 +112,16 @@ public static class Program
         {
             Console.WriteLine($"Checking image {image.Value.Name}...");
 
-            // Skip dynamic linker
+            // Skip images that should not be instrumented
             if(image.Value.Name.Contains("ld-linux-x86-64"))
             {
                 Console.WriteLine("  Dynamic linker, skipping...");
+                continue;
+            }
+
+            if(image.Value.Name.Contains("[vdso]"))
+            {
+                Console.WriteLine("  vDSO, skipping...");
                 continue;
             }
 
@@ -148,7 +154,7 @@ public static class Program
             foreach(var image in instrumentImages)
             {
                 var elf = ElfReader.Load(image.oldImagePath);
-                
+
                 var imageSymbolTables = new List<SymbolTableParser>();
                 for(int s = 0; s < elf.SectionHeaderTable.SectionHeaders.Count; ++s)
                 {
@@ -370,6 +376,8 @@ public static class Program
 
         _mappingFileWriter.Dispose();
         _ignoreFileWriter.Dispose();
+
+        Console.WriteLine("Instrumentation completed.");
     }
 
     private static void InstrumentImage(int imageId, bool isMainImage, List<BbToolResult.BasicBlockData> basicBlocks, List<(int imageId, string oldImageName, string oldImagePath, string newImageName, string newImagePath)> instrumentImages)
@@ -1427,7 +1435,7 @@ public static class Program
             }
 
             // Patch original basic block
-            elf.PatchRawBytesAtAddress((int)bbBaseOffset, textSectionPatchesStream.ToArray().AsSpan(0, (int)textSectionPatchesStream.Position));
+            elf.PatchRawBytesAtOffset((int)bbBaseOffset, textSectionPatchesStream.ToArray().AsSpan(0, (int)textSectionPatchesStream.Position));
         }
 
         // Insert symbols for instrumentation code
@@ -1467,16 +1475,16 @@ public static class Program
         }
 
         // Find .dynstr table
-        ulong dynamicStringTableOffset = elf.DynamicTable.Entries.First(e => e.Type == DynamicEntryType.DT_STRTAB).Value;
-        int dynamicStringTableSectionIndex = elf.SectionHeaderTable.SectionHeaders.FindIndex(h => h.FileOffset == dynamicStringTableOffset);
+        ulong dynamicStringTableAddress = elf.DynamicTable.Entries.First(e => e.Type == DynamicEntryType.DT_STRTAB).Value;
+        int dynamicStringTableSectionIndex = elf.SectionHeaderTable.SectionHeaders.FindIndex(h => h.VirtualAddress == dynamicStringTableAddress);
         var dynamicStringTableHeader = elf.SectionHeaderTable.SectionHeaders[dynamicStringTableSectionIndex];
-        var dynamicStringTableChunkIndex = elf.GetChunkAtFileOffset(dynamicStringTableOffset);
+        var dynamicStringTableChunkIndex = elf.GetChunkAtFileOffset(dynamicStringTableHeader.FileOffset);
         if(dynamicStringTableChunkIndex == null)
             throw new Exception("Could not find dynamic string table.");
         var dynamicStringTableChunk = (StringTableChunk)elf.Chunks[dynamicStringTableChunkIndex.Value.chunkIndex];
 
         // Insert name strings of image and dependencies
-        var newImageNames = instrumentImages.Select(i => i.newImagePath).ToArray();
+        var newImageNames = instrumentImages.Select(i => "./" + i.newImageName).ToArray();
         elf.AllocateFileMemory((int)dynamicStringTableHeader.FileOffset + (int)dynamicStringTableHeader.Size, newImageNames.Sum(i => i.Length + 1));
         var newImageNamesStringTableOffsets = elf.ExtendStringTable(dynamicStringTableSectionIndex, newImageNames, null);
 
