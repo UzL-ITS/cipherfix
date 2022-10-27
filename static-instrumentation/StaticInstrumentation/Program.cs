@@ -1340,7 +1340,10 @@ public static class Program
         instrumentSectionBuilder.PrivateDataBlockAddresses = new List<(ulong baseAddress, int length)>();
         foreach(var imageMemoryBlock in _analysisResult.ImageMemoryBlocks.Where(m => m.Value.ImageId == imageId))
         {
-            instrumentSectionBuilder.PrivateDataBlockAddresses.Add(((ulong)imageMemoryBlock.Value.Offset, imageMemoryBlock.Value.Size));
+            // HACK In case the image addresses are not based on 0, but e.g. on 0x400000, we just assume that the first LOAD segment points to its base address
+            ulong baseAddress = elf.ProgramHeaderTable.ProgramHeaders.First().VirtualMemoryAddress + (ulong)imageMemoryBlock.Value.Offset;
+            
+            instrumentSectionBuilder.PrivateDataBlockAddresses.Add((baseAddress, imageMemoryBlock.Value.Size));
         }
 
         // Try to locate existing symbol table so we can generate meaningful symbols for the instrumented BBs
@@ -1600,6 +1603,12 @@ public static class Program
                 offset += (int)next;
             }
         }
+        
+        // Patch offset of .instr.text section in the program header table, in case the section was moved (LOAD entries aren't patched automatically)
+        // Same for the address in the section header.
+        var instrTextSectionProgramHeader = elf.ProgramHeaderTable.ProgramHeaders.First(h => h.VirtualMemoryAddress == instrTextSectionAddress);
+        instrTextSectionProgramHeader.FileOffset = elf.SectionHeaderTable.SectionHeaders[instrumentSectionIndex].FileOffset;
+        elf.SectionHeaderTable.SectionHeaders[instrumentSectionIndex].VirtualAddress = instrTextSectionProgramHeader.VirtualMemoryAddress;
 
         // Store instrumented program
         ElfWriter.Store(elf, instrumentImages.First(i => i.imageId == imageId).newImagePath);
