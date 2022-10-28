@@ -133,8 +133,8 @@ To analyze, instrument and run the examples, execute the following steps:
    On the first run, this will produce a number of candidates for heap allocation functions, which can not be determined automatically and thus must be appended to `./cipherfix/examples/<name>/structure.out` manually. Each entry consists of a function address and a type prefix (`Mm` for `malloc`, `Mr` for `realloc`).
    
    Allocation functions for `tweetnacl-eddsa`:
-   - `Mm`: malloc@plt` at low address in `app` (usually `+1180`)
-   - `Mm`: malloc` in `libc.so.6` (usually `+22310`)
+   - `Mm`: `malloc@plt` at low address in `app` (usually `+1180`)
+   - `Mm`: `malloc` in `libc.so.6` (usually `+22310`)
 
    For example:
    ```
@@ -146,8 +146,8 @@ To analyze, instrument and run the examples, execute the following steps:
    - `Mm`: `malloc@plt` at low address in `app` (usually `+1230`)
    - `Mm`: `CRYPTO_malloc@plt` at low address in `app` (usually `+1250`)
    - `Mm`: `malloc` in `libc.so.6` (usually `+22310`)
-   - `Mm`: `CRYPTO_malloc` in `libcrypto.so.1.1` (usually `+220070`)
-   - `Mr`: `CRYPTO_realloc` in `libcrypto.so.1.1` (usually `+2200c0`)
+   - `Mm`: `CRYPTO_malloc` in `libcrypto.so.3` (usually `+220070`)
+   - `Mr`: `CRYPTO_realloc` in `libcrypto.so.3` (usually `+2200c0`)
 
    For example:
    ```
