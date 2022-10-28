@@ -2,7 +2,7 @@
 
 cd cipherfix/examples/openssl-ecdsa
 echo "-- Original: --"
-./app 3
+LD_LIBRARY_PATH=/cipherfix/openssl-install/lib64 ./app 3
 
 echo ""
 echo "-- Instrumented: --"

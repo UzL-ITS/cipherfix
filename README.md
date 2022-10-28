@@ -130,32 +130,32 @@ To analyze, instrument and run the examples, execute the following steps:
    ```
    ./instrument-<name>.sh
    ```
-   On the first run, this will produce a number of candidates for heap allocation functions, which can not be determined automatically and thus must be appended to `./cipherfix/examples/<name>/structure.out` manually.
-   
-   For the given Docker image, in our experiments, no `realloc` function was called, so all following entries are prefixed with `Mm`.
+   On the first run, this will produce a number of candidates for heap allocation functions, which can not be determined automatically and thus must be appended to `./cipherfix/examples/<name>/structure.out` manually. Each entry consists of a function address and a type prefix (`Mm` for `malloc`, `Mr` for `realloc`).
    
    Allocation functions for `tweetnacl-eddsa`:
-   - `malloc@plt` at low address in `app` (usually `+1180`)
-   - `malloc` in `libc.so.6` (usually `+22310`)
+   - `Mm`: malloc@plt` at low address in `app` (usually `+1180`)
+   - `Mm`: malloc` in `libc.so.6` (usually `+22310`)
 
    For example:
    ```
-   Mm 0000555a7096f180
-   Mm 00007f3f61515310
+   Mm 000055de873bc180
+   Mm 00007f6f9fac9310
    ```
    
    Allocation functions for `openssl-ecdsa`:
-   - `malloc@plt` at low address in `app` (usually `+1230`)
-   - `CRYPTO_malloc@plt` at low address in `app` (usually `+1250`)
-   - `malloc` in `libc.so.6` (usually `+22310`)
-   - `CRYPTO_malloc@plt` in `libcrypto.so.1.1` (usually `+17baa0`)
+   - `Mm`: `malloc@plt` at low address in `app` (usually `+1230`)
+   - `Mm`: `CRYPTO_malloc@plt` at low address in `app` (usually `+1250`)
+   - `Mm`: `malloc` in `libc.so.6` (usually `+22310`)
+   - `Mm`: `CRYPTO_malloc` in `libcrypto.so.1.1` (usually `+220070`)
+   - `Mr`: `CRYPTO_realloc` in `libcrypto.so.1.1` (usually `+2200c0`)
 
    For example:
    ```
-   Mm 0000561b18e5a230
-   Mm 0000561b18e5a250
-   Mm 00007f4fe7905310
-   Mm 00007f4fe7d34aa0
+   Mm 000055c1a9c7a230
+   Mm 000055c1a9c7a250
+   Mm 00007f32ba31d310
+   Mm 00007f32ba89e070
+   Mr 00007f32ba89e0c0
    ```
    
    After entering all allocation functions, re-run the instrumentation.
