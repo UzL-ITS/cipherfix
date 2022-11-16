@@ -12,8 +12,8 @@ namespace StaticInstrumentation;
 /// </summary>
 public class MaskUtils
 {
-    public const int SecrecyBufferOffset = -0x30000000;
-    public const int MaskBufferOffset = -0x40000000;
+    public const int SecrecyBufferOffset = -0x2ffff000;
+    public const int MaskBufferOffset = -0x3ffff000;
 
     public static bool DebugForceZeroMask = false; // Debug flag
     public static bool DebugForceConstantMask = false; // Debug flag
