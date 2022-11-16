@@ -227,7 +227,7 @@ public partial class InstructionTranslator
                         _assembler.or(mergeToy.Reg64, dataToy.Reg64);
 
                         // Update mask
-                        UpdateMaskRdrand(wideMemoryOperand, maskToy, 8, false);
+                        UpdateMask(wideMemoryOperand, maskToy, 8, false);
 
                         // Encode with new mask and store
                         _assembler.xor(mergeToy.Reg64, maskToy.Reg64);
@@ -236,7 +236,7 @@ public partial class InstructionTranslator
                     else
                     {
                         // Update mask
-                        UpdateMaskRdrand(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
+                        UpdateMask(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
 
                         // Encode with new mask and store
                         _assembler.xor(dataToy, maskToy);
@@ -284,7 +284,7 @@ public partial class InstructionTranslator
                     else
                     {
                         // Update mask
-                        UpdateMaskRdrand(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
+                        UpdateMask(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
 
                         // Encode with new mask and store
                         _assembler.xor(dataToy, maskToy);
@@ -320,7 +320,7 @@ public partial class InstructionTranslator
                     else
                     {
                         // Update mask
-                        UpdateMaskRdrand(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
+                        UpdateMask(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
 
                         // Encode with new mask and store
                         _assembler.xor(dataToy, maskToy);
@@ -356,7 +356,7 @@ public partial class InstructionTranslator
                     else
                     {
                         // Update mask
-                        UpdateMaskRdrand(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
+                        UpdateMask(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
 
                         // Encode with new mask and store
                         _assembler.xor(dataToy, maskToy);
@@ -388,7 +388,7 @@ public partial class InstructionTranslator
                         // Update mask
                         if(!MaskUtils.UseSecrecyBuffer && !instructionData.AccessesOnlySecretBlocks)
                             _assembler.mov(maskToy.Reg8, __byte_ptr[memoryOperand + MaskUtils.MaskBufferOffset]);
-                        UpdateMaskRdrand(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
+                        UpdateMask(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
 
                         // Encode with new mask and store
                         _assembler.xor(dataToy.Reg8, maskToy.Reg8);
@@ -432,7 +432,7 @@ public partial class InstructionTranslator
                         _assembler.or(mergeToy.Reg64, toy1.Reg64);
 
                         // Update mask
-                        UpdateMaskRdrand(wideMemoryOperand, toy1, 8, false);
+                        UpdateMask(wideMemoryOperand, toy1, 8, false);
 
                         // Encode with new mask and store
                         _assembler.xor(mergeToy.Reg64, toy1.Reg64);
@@ -445,7 +445,7 @@ public partial class InstructionTranslator
                         // Update mask
                         if(!MaskUtils.UseSecrecyBuffer && !instructionData.AccessesOnlySecretBlocks)
                             _assembler.mov(toy1, __width_ptr[memoryOperand + MaskUtils.MaskBufferOffset]);
-                        UpdateMaskRdrand(memoryOperand, toy1, width, instructionData.AccessesOnlySecretBlocks);
+                        UpdateMask(memoryOperand, toy1, width, instructionData.AccessesOnlySecretBlocks);
 
                         // Load new value into toy register
                         if(registerOperands.Count == 0)
@@ -580,7 +580,7 @@ public partial class InstructionTranslator
                     // Update mask
                     if(!MaskUtils.UseSecrecyBuffer && !instructionData.AccessesOnlySecretBlocks)
                         _assembler.mov(maskToy, __width_ptr[memoryOperand + MaskUtils.MaskBufferOffset]);
-                    UpdateMaskRdrand(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
+                    UpdateMask(memoryOperand, maskToy, width, instructionData.AccessesOnlySecretBlocks);
 
                     // Load new value into toy register
                     if(width == 8)
@@ -608,7 +608,7 @@ public partial class InstructionTranslator
                     // Update mask
                     if(!MaskUtils.UseSecrecyBuffer && !instructionData.AccessesOnlySecretBlocks)
                         _assembler.mov(toy1, __qword_ptr[rsp - 8 + MaskUtils.MaskBufferOffset]);
-                    UpdateMaskRdrand(rsp - 8, toy1, 8, instructionData.AccessesOnlySecretBlocks);
+                    UpdateMask(rsp - 8, toy1, 8, instructionData.AccessesOnlySecretBlocks);
 
                     if(registerOperands.Count > 0)
                     {
@@ -1475,7 +1475,7 @@ public partial class InstructionTranslator
     /// <param name="maskToy">Toy register for mask generation, containing the old mask (only used when <see cref="MaskUtils.UseSecrecyBuffer"/> is false). The new mask will be left in this register, so it can be used directly.</param>
     /// <param name="width">Mask width.</param>
     /// <param name="skipPreviousMaskCheck">If true, the check for an existing zero-mask is omitted.</param>
-    private void UpdateMaskRdrand(AssemblerMemoryOperand dataMemoryOperand, GenericAssemblerRegister maskToy, int width, bool skipPreviousMaskCheck)
+    private void UpdateMask(AssemblerMemoryOperand dataMemoryOperand, GenericAssemblerRegister maskToy, int width, bool skipPreviousMaskCheck)
     {
         Label skipMaskUpdateLabel = _assembler.CreateLabel();
         if(!MaskUtils.UseSecrecyBuffer)

@@ -44,75 +44,6 @@ public class MaskUtils
         }
     }
 
-    public static void GenerateMask(Assembler assembler, AssemblerRegister32 register)
-    {
-        if(DebugForceZeroMask)
-            assembler.xor(register, register);
-        else if(DebugForceConstantMask)
-            assembler.mov(register, 0xc0ffee11);
-        else
-        {
-            assembler.AnonymousLabel();
-            assembler.rdrand(register);
-
-            if(UseSecrecyBuffer)
-            {
-                assembler.jnc(assembler.B);
-            }
-            else
-            {
-                assembler.test(register.GetSubRegister8L(), register.GetSubRegister8L());
-                assembler.jz(assembler.B);
-            }
-        }
-    }
-
-    public static void GenerateMask(Assembler assembler, AssemblerRegister16 register)
-    {
-        if(DebugForceZeroMask)
-            assembler.xor(register, register);
-        else if(DebugForceConstantMask)
-            assembler.mov(register, 0xc0ff);
-        else
-        {
-            assembler.AnonymousLabel();
-            assembler.rdrand(register);
-
-            if(UseSecrecyBuffer)
-            {
-                assembler.jnc(assembler.B);
-            }
-            else
-            {
-                assembler.test(register.GetSubRegister8L(), register.GetSubRegister8L());
-                assembler.jz(assembler.B);
-            }
-        }
-    }
-
-    public static void GenerateMask(Assembler assembler, AssemblerRegister8 register)
-    {
-        if(DebugForceZeroMask)
-            assembler.xor(register, register);
-        else if(DebugForceConstantMask)
-            assembler.mov(register, 0xc0);
-        else
-        {
-            assembler.AnonymousLabel();
-            assembler.rdrand(new AssemblerRegister64(register.Value.GetFullRegister()).GetSubRegister16());
-
-            if(UseSecrecyBuffer)
-            {
-                assembler.jnc(assembler.B);
-            }
-            else
-            {
-                assembler.test(register, register);
-                assembler.jz(assembler.B);
-            }
-        }
-    }
-
     public static void StoreMask(Assembler assembler, AssemblerMemoryOperand dataMemoryOperand, AssemblerRegister64 mask)
     {
         assembler.DebugMarkSkippableSectionBegin();
@@ -151,7 +82,7 @@ public class MaskUtils
 
     public static void GenerateAndStoreMask(Assembler assembler, AssemblerMemoryOperand dataMemoryOperand, AssemblerRegister32 mask)
     {
-        GenerateMask(assembler, mask);
+        GenerateMask(assembler, new AssemblerRegister64(mask.Value.GetFullRegister()));
         StoreMask(assembler, dataMemoryOperand, mask);
         if(UseSecrecyBuffer)
             assembler.and(mask, __dword_ptr[dataMemoryOperand + SecrecyBufferOffset]);
@@ -159,7 +90,7 @@ public class MaskUtils
 
     public static void GenerateAndStoreMask(Assembler assembler, AssemblerMemoryOperand dataMemoryOperand, AssemblerRegister16 mask)
     {
-        GenerateMask(assembler, mask);
+        GenerateMask(assembler, new AssemblerRegister64(mask.Value.GetFullRegister()));
         StoreMask(assembler, dataMemoryOperand, mask);
         if(UseSecrecyBuffer)
             assembler.and(mask, __word_ptr[dataMemoryOperand + SecrecyBufferOffset]);
@@ -167,7 +98,7 @@ public class MaskUtils
 
     public static void GenerateAndStoreMask(Assembler assembler, AssemblerMemoryOperand dataMemoryOperand, AssemblerRegister8 mask)
     {
-        GenerateMask(assembler, mask);
+        GenerateMask(assembler, new AssemblerRegister64(mask.Value.GetFullRegister()));
         StoreMask(assembler, dataMemoryOperand, mask);
         if(UseSecrecyBuffer)
             assembler.and(mask, __byte_ptr[dataMemoryOperand + SecrecyBufferOffset]);
