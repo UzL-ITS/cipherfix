@@ -67,118 +67,144 @@ public class StackFrameInitializer
          * `mov`s, and the latter are initialized with AVX instructions.
          */
 
-        using var toy1 = registerAllocator.AllocateToyRegister();
-
-        // Generate mask, if necessary
-        if(maskedChunks.Count > 0)
-        {
-            if(MaskUtils.UseSecrecyBuffer)
-            {
-                // Secrecy buffer flags
-                _assembler.mov(toy1.Reg64, -1);
-            }
-            else
-            {
-                // We use the same initial mask value for all secrets
-                MaskUtils.GenerateMask(_assembler, toy1.Reg64);
-            }
-        }
-
         int bufferOffset = MaskUtils.UseSecrecyBuffer ? MaskUtils.SecrecyBufferOffset : MaskUtils.MaskBufferOffset;
 
         if(totalLength <= 64)
         {
+            using var toyMask = registerAllocator.AllocateToyRegister();
+
+            // Generate mask, if necessary
+            if(maskedChunks.Count > 0)
+            {
+                if(MaskUtils.UseSecrecyBuffer)
+                {
+                    // Secrecy buffer flags
+                    _assembler.mov(toyMask.Reg64, -1);
+                }
+                else
+                {
+                    // We use the same initial mask value for all secrets
+                    MaskUtils.GenerateMask(_assembler, toyMask.Reg64);
+                }
+            }
+
             foreach(var chunk in maskedChunks)
             {
                 switch(chunk.length)
                 {
                     case 1:
-                        _assembler.mov(__byte_ptr[rsp + chunk.start + bufferOffset], toy1.Reg8);
+                        _assembler.mov(__byte_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg8);
                         break;
                     case 2:
-                        _assembler.mov(__word_ptr[rsp + chunk.start + bufferOffset], toy1.Reg16);
+                        _assembler.mov(__word_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg16);
                         break;
                     case 4:
-                        _assembler.mov(__dword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg32);
+                        _assembler.mov(__dword_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg32);
                         break;
                     case 8:
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg64);
                         break;
                     case 16:
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg64);
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + 8 + bufferOffset], toy1.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + 8 + bufferOffset], toyMask.Reg64);
                         break;
                     case 32:
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg64);
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + 8 + bufferOffset], toy1.Reg64);
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + 16 + bufferOffset], toy1.Reg64);
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + 24 + bufferOffset], toy1.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + 8 + bufferOffset], toyMask.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + 16 + bufferOffset], toyMask.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + 24 + bufferOffset], toyMask.Reg64);
                         break;
                 }
             }
 
-            _assembler.xor(toy1.Reg32, toy1.Reg32);
+            _assembler.xor(toyMask.Reg32, toyMask.Reg32);
             foreach(var chunk in zeroChunks)
             {
                 switch(chunk.length)
                 {
                     case 1:
-                        _assembler.mov(__byte_ptr[rsp + chunk.start + bufferOffset], toy1.Reg8);
+                        _assembler.mov(__byte_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg8);
                         break;
                     case 2:
-                        _assembler.mov(__word_ptr[rsp + chunk.start + bufferOffset], toy1.Reg16);
+                        _assembler.mov(__word_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg16);
                         break;
                     case 4:
-                        _assembler.mov(__dword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg32);
+                        _assembler.mov(__dword_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg32);
                         break;
                     case 8:
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg64);
                         break;
                     case 16:
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg64);
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + 8 + bufferOffset], toy1.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + 8 + bufferOffset], toyMask.Reg64);
                         break;
                     case 32:
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg64);
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + 8 + bufferOffset], toy1.Reg64);
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + 16 + bufferOffset], toy1.Reg64);
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + 24 + bufferOffset], toy1.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toyMask.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + 8 + bufferOffset], toyMask.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + 16 + bufferOffset], toyMask.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + 24 + bufferOffset], toyMask.Reg64);
                         break;
                 }
             }
-            
+
             // Add some padding before and after the stack frame
             if(MaskUtils.UseSecrecyBuffer && MaskUtils.AvoidSmallWrites)
             {
-                _assembler.mov(__qword_ptr[rsp + MaskUtils.SecrecyBufferOffset], toy1.Reg64);
-                _assembler.mov(__qword_ptr[rsp - totalLength - 8 + MaskUtils.SecrecyBufferOffset], toy1.Reg64);
+                _assembler.mov(__qword_ptr[rsp + MaskUtils.SecrecyBufferOffset], toyMask.Reg64);
+                _assembler.mov(__qword_ptr[rsp - totalLength - 8 + MaskUtils.SecrecyBufferOffset], toyMask.Reg64);
             }
         }
         else
         {
-            var toyPrimary = registerAllocator.AllocateToyVectorRegister();
-            var toySecondary = registerAllocator.AllocateToyVectorRegister();
+            ToyRegister toySmall = null;
+
+            var toyMask = registerAllocator.AllocateToyVectorRegister(32);
+            var toyZero = registerAllocator.AllocateToyVectorRegister(32);
+
+            _assembler.vpxor(toyZero, toyZero, toyZero);
+
+            // Generate mask, if necessary
+            if(maskedChunks.Count > 0)
+            {
+                if(MaskUtils.UseSecrecyBuffer)
+                {
+                    // Secrecy buffer flags
+                    toySmall = registerAllocator.AllocateToyRegister(preferredWidth: 8);
+                    _assembler.mov(toySmall.Reg64, -1);
+                    _assembler.vmovq(toyMask.RegXMM, toySmall.Reg64);
+                    _assembler.vpbroadcastq(toyMask.RegYMM, toyMask.RegXMM);
+                }
+                else
+                {
+                    // We use the same initial mask value for all secrets
+                    toySmall = MaskUtils.GenerateMask(_assembler, toyMask, registerAllocator);
+                }
+            }
+
+            // Ensure that there is a toy register for small writes
+            if(toySmall == null)
+                toySmall = registerAllocator.AllocateToyRegister(preferredWidth: 8);
 
             // Decide which chunk type is more prevalent
             List<(int start, int length)> chunksSecondary;
             List<int> offsetsSecondary;
+            GenericAssemblerVectorRegister toyPrimary;
+            GenericAssemblerVectorRegister toySecondary;
             if(maskedChunksTotalLength > zeroChunksTotalLength)
             {
                 chunksSecondary = zeroChunks;
                 offsetsSecondary = zeroOffsets;
 
-                _assembler.vmovq(toySecondary.RegXMM, toy1.Reg64);
-                _assembler.vpbroadcastq(toyPrimary.RegYMM, toySecondary.RegXMM);
-                _assembler.vpxor(toySecondary.RegXMM, toySecondary.RegXMM, toySecondary.RegXMM);
+                toyPrimary = toyMask;
+                toySecondary = toyZero;
             }
             else
             {
                 chunksSecondary = maskedChunks;
                 offsetsSecondary = maskedOffsets;
 
-                _assembler.vmovq(toyPrimary.RegXMM, toy1.Reg64);
-                _assembler.vpbroadcastq(toySecondary.RegYMM, toyPrimary.RegXMM);
-                _assembler.vpxor(toyPrimary.RegXMM, toyPrimary.RegXMM, toyPrimary.RegXMM);
+                toyPrimary = toyZero;
+                toySecondary = toyMask;
             }
 
             // 1. Fill entire stack frame with primary chunk types
@@ -232,22 +258,22 @@ public class StackFrameInitializer
 
             // Write secondary chunks
             if(chunksSecondary == zeroChunks)
-                _assembler.xor(toy1.Reg32, toy1.Reg32);
+                _assembler.xor(toySmall.Reg32, toySmall.Reg32);
             foreach(var chunk in chunksSecondary)
             {
                 switch(chunk.length)
                 {
                     case 1:
-                        _assembler.mov(__byte_ptr[rsp + chunk.start + bufferOffset], toy1.Reg8);
+                        _assembler.mov(__byte_ptr[rsp + chunk.start + bufferOffset], toySmall.Reg8);
                         break;
                     case 2:
-                        _assembler.mov(__word_ptr[rsp + chunk.start + bufferOffset], toy1.Reg16);
+                        _assembler.mov(__word_ptr[rsp + chunk.start + bufferOffset], toySmall.Reg16);
                         break;
                     case 4:
-                        _assembler.mov(__dword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg32);
+                        _assembler.mov(__dword_ptr[rsp + chunk.start + bufferOffset], toySmall.Reg32);
                         break;
                     case 8:
-                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toy1.Reg64);
+                        _assembler.mov(__qword_ptr[rsp + chunk.start + bufferOffset], toySmall.Reg64);
                         break;
                     case 16:
                         _assembler.vmovdqu(__xmmword_ptr[rsp + chunk.start + bufferOffset], toySecondary.RegXMM);
@@ -257,20 +283,23 @@ public class StackFrameInitializer
                         break;
                 }
             }
-            
+
             // Add some padding before and after the stack frame
             if(MaskUtils.UseSecrecyBuffer && MaskUtils.AvoidSmallWrites)
             {
                 // Zero toy register, if necessary
                 if(chunksSecondary != zeroChunks)
-                    _assembler.xor(toy1.Reg32, toy1.Reg32);
-                
-                _assembler.mov(__qword_ptr[rsp + MaskUtils.SecrecyBufferOffset], toy1.Reg64);
-                _assembler.mov(__qword_ptr[rsp - totalLength - 8 + MaskUtils.SecrecyBufferOffset], toy1.Reg64);
-            }
-        }
+                    _assembler.xor(toySmall.Reg32, toySmall.Reg32);
 
-        registerAllocator.FreeToyRegister(toy1);
+                _assembler.mov(__qword_ptr[rsp + MaskUtils.SecrecyBufferOffset], toySmall.Reg64);
+                _assembler.mov(__qword_ptr[rsp - totalLength - 8 + MaskUtils.SecrecyBufferOffset], toySmall.Reg64);
+            }
+
+            registerAllocator.FreeToyVectorRegister(toyMask);
+            registerAllocator.FreeToyVectorRegister(toyZero);
+
+            toySmall.Free();
+        }
 
         // Restore toy registers and flags
         registerAllocator.Restore();

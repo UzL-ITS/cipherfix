@@ -1,4 +1,5 @@
-﻿using Iced.Intel;
+﻿using System;
+using Iced.Intel;
 using static Iced.Intel.AssemblerRegisters;
 
 namespace StaticInstrumentation;
@@ -20,6 +21,10 @@ public class MaskUtils
 
     public static bool UseSecrecyBuffer = false;
     public static bool AvoidSmallWrites = false;
+    public static bool UseFastRng = false;
+
+    public static AssemblerRegisterXMM? FastRngState;
+    public static AssemblerRegisterXMM? FastRngKey;
 
     public static void GenerateMask(Assembler assembler, AssemblerRegister64 register)
     {
@@ -27,6 +32,14 @@ public class MaskUtils
             assembler.xor(register.GetSubRegister32(), register.GetSubRegister32());
         else if(DebugForceConstantMask)
             assembler.mov(register, 0xc0ffee11c0ffee11);
+        else if(UseFastRng)
+        {
+            if(FastRngState == null || FastRngKey == null)
+                throw new Exception("Invalid RNG configuration");
+
+            assembler.vaesenc(FastRngState.Value, FastRngState.Value, FastRngKey.Value);
+            assembler.vmovq(register, FastRngState.Value);
+        }
         else
         {
             assembler.AnonymousLabel();
@@ -42,6 +55,73 @@ public class MaskUtils
                 assembler.jz(assembler.B);
             }
         }
+    }
+
+    public static ToyRegister GenerateMask(Assembler assembler, GenericAssemblerVectorRegister register, ToyRegisterAllocator toyRegisterAllocator)
+    {
+        if(DebugForceZeroMask)
+            assembler.vpxor(register, register, register);
+        else if(DebugForceConstantMask)
+        {
+            var toy = toyRegisterAllocator.AllocateToyRegister(preferredWidth: 8);
+
+            assembler.mov(toy.Reg64, 0xc0ffee11c0ffee11);
+
+            // Copy into vector register
+            assembler.vmovq(register.RegXMM, toy.Reg64);
+            if(register.PreferredWidth == 16)
+                assembler.vpinsrq(register.RegXMM, register.RegXMM, toy.Reg64, 1);
+            else if(register.PreferredWidth == 32)
+                assembler.vpbroadcastq(register.RegYMM, register.RegXMM);
+            else
+                throw new InvalidOperationException("Unsupported / invalid preferred register width.");
+
+            return toy;
+        }
+        else if(UseFastRng)
+        {
+            if(FastRngState == null || FastRngKey == null)
+                throw new Exception("Invalid RNG configuration");
+
+            assembler.vaesenc(FastRngState.Value, FastRngState.Value, FastRngKey.Value);
+            
+            if(register.PreferredWidth == 16)
+                assembler.vpbroadcastq(register.RegXMM, FastRngState.Value);
+            else if(register.PreferredWidth == 32)
+                assembler.vpbroadcastq(register.RegYMM, FastRngState.Value);
+            else
+                throw new InvalidOperationException("Unsupported / invalid preferred register width.");
+        }
+        else
+        {
+            var toy = toyRegisterAllocator.AllocateToyRegister(preferredWidth: 8);
+
+            assembler.AnonymousLabel();
+            assembler.rdrand(toy.Reg64);
+
+            if(UseSecrecyBuffer)
+            {
+                assembler.jnc(assembler.B);
+            }
+            else
+            {
+                assembler.test(toy.Reg8, toy.Reg8);
+                assembler.jz(assembler.B);
+            }
+
+            // Copy into vector register
+            assembler.vmovq(register.RegXMM, toy.Reg64);
+            if(register.PreferredWidth == 16)
+                assembler.vpinsrq(register.RegXMM, register.RegXMM, toy.Reg64, 1);
+            else if(register.PreferredWidth == 32)
+                assembler.vpbroadcastq(register.RegYMM, register.RegXMM);
+            else
+                throw new InvalidOperationException("Unsupported / invalid preferred register width.");
+
+            return toy;
+        }
+
+        return null;
     }
 
     public static void StoreMask(Assembler assembler, AssemblerMemoryOperand dataMemoryOperand, AssemblerRegister64 mask)

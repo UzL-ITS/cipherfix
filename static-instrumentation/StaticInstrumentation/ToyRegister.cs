@@ -25,4 +25,6 @@ public class ToyRegister : GenericAssemblerRegister, IDisposable
     {
         _allocator.FreeToyRegister(this);
     }
+
+    public void Free() => Dispose();
 }

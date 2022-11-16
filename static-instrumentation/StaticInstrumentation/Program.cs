@@ -34,14 +34,6 @@ public static class Program
 
     private static bool _debug;
 
-    public const long ManagementObjectAddress = 0x700000000000;
-    public const int ManagementObjectInt3HtListOffset = 0;
-    public const int ManagementObjectInt3HtListCount = 16;
-    public const int ManagementObjectHeaderAddrListOffset = ManagementObjectInt3HtListOffset + 8 * ManagementObjectInt3HtListCount;
-    public const int ManagementObjectHeaderAddrListCount = 16;
-    public const int ManagementObjectAllocTrackerOffset = ManagementObjectHeaderAddrListOffset + 8 * ManagementObjectHeaderAddrListCount;
-    public const int ManagementObjectAllocTrackerSize = 8;
-
     public static void Main(string[] args)
     {
         if(args.Length < 2)
@@ -80,6 +72,7 @@ public static class Program
 
             MaskUtils.DebugForceZeroMask = argFlags.Contains("zeromask");
             MaskUtils.DebugForceConstantMask = !MaskUtils.DebugForceZeroMask && argFlags.Contains("constmask");
+            MaskUtils.UseFastRng = argFlags.Contains("aesrng");
             AssemblerExtensions.DebugInsertMarkersForMaskingCode = argFlags.Contains("debugtracemarker");
             AssemblerExtensions.DebugInsertMarkersForMemtraceEvaluation = argFlags.Contains("evalmarker");
             _debug = argFlags.Contains("dumpinstr");
@@ -105,6 +98,37 @@ public static class Program
 
         // Load image and basic block data
         _bbToolResult = BbToolResult.FromFile(Path.Join(_inputDirectory, "structure.out"));
+
+        // Identify available vector registers for mask generation
+        if(MaskUtils.UseFastRng)
+        {
+            var availableVectorRegisters = RegisterExtensions.VectorRegisters
+                .Except(
+                    _bbToolResult.UsedRegisters
+                        .Where(r => r.IsVectorRegister())
+                        .Select(r => RegisterExtensions.Vector256Lookup[r].Value)
+                )
+                .OrderBy(r => r)
+                .ToList();
+
+            if(availableVectorRegisters.Count < 2)
+            {
+                Console.WriteLine("ERROR: (custom RNG) Too few available vector registers");
+                return;
+            }
+
+            if(availableVectorRegisters.Count < 3)
+            {
+                Console.WriteLine("WARNING: (custom RNG) No remaining vector register for fast general-purpose register save/restore");
+            }
+
+            MaskUtils.FastRngKey = RegisterExtensions.Vector128Lookup[availableVectorRegisters[^1]];
+            MaskUtils.FastRngState =  RegisterExtensions.Vector128Lookup[availableVectorRegisters[^2]];
+            ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngKey.Value);
+            ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngState.Value);
+            
+            Console.WriteLine($"Allocated fixed RNG vector registers: {MaskUtils.FastRngState.Value.Value} {MaskUtils.FastRngKey.Value.Value}");
+        }
 
         // Find images to be instrumented
         List<(int imageId, string oldImageName, string oldImagePath, string newImageName, string newImagePath)> instrumentImages = new();
@@ -879,7 +903,7 @@ public static class Program
                     // mov rax, [alloc_tracker]
                     var beforeGetTrackerInstruction = new InstructionInstrumentationData
                     {
-                        Instruction = Instruction.Create(Code.Mov_RAX_moffs64, Register.RAX, new MemoryOperand(ManagementObjectAddress + ManagementObjectAllocTrackerOffset, 8))
+                        Instruction = Instruction.Create(Code.Mov_RAX_moffs64, Register.RAX, new MemoryOperand(Constants.ManagementObjectAddress + Constants.ManagementObjectAllocTrackerOffset, 8))
                             with
                             {
                                 Length = 10,
@@ -909,7 +933,7 @@ public static class Program
 
                     var beforeSetTrackerInstruction = new InstructionInstrumentationData
                     {
-                        Instruction = Instruction.Create(Code.Mov_moffs64_RAX, new MemoryOperand(ManagementObjectAddress + ManagementObjectAllocTrackerOffset, 8), Register.RAX)
+                        Instruction = Instruction.Create(Code.Mov_moffs64_RAX, new MemoryOperand(Constants.ManagementObjectAddress + Constants.ManagementObjectAllocTrackerOffset, 8), Register.RAX)
                             with
                             {
                                 Length = 10,
@@ -1000,7 +1024,7 @@ public static class Program
 
                     var afterGetTrackerAddressInstruction = new InstructionInstrumentationData
                     {
-                        Instruction = Instruction.Create(Code.Mov_r64_imm64, Register.RDI, ManagementObjectAddress + ManagementObjectAllocTrackerOffset)
+                        Instruction = Instruction.Create(Code.Mov_r64_imm64, Register.RDI, Constants.ManagementObjectAddress + Constants.ManagementObjectAllocTrackerOffset)
                             with
                             {
                                 Length = 10,
@@ -1342,7 +1366,7 @@ public static class Program
         {
             // HACK In case the image addresses are not based on 0, but e.g. on 0x400000, we just assume that the first LOAD segment points to its base address
             ulong baseAddress = elf.ProgramHeaderTable.ProgramHeaders.First().VirtualMemoryAddress + (ulong)imageMemoryBlock.Value.Offset;
-            
+
             instrumentSectionBuilder.PrivateDataBlockAddresses.Add((baseAddress, imageMemoryBlock.Value.Size));
         }
 
@@ -1603,7 +1627,7 @@ public static class Program
                 offset += (int)next;
             }
         }
-        
+
         // Patch offset of .instr.text section in the program header table, in case the section was moved (LOAD entries aren't patched automatically)
         // Same for the address in the section header.
         var instrTextSectionProgramHeader = elf.ProgramHeaderTable.ProgramHeaders.First(h => h.VirtualMemoryAddress == instrTextSectionAddress);

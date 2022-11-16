@@ -14,13 +14,13 @@ public class ToyRegisterAllocator
     /// <summary>
     /// General purpose registers that aren't read or written by the instruction.
     /// </summary>
-    private  List<Register> _instructionNoReadWriteGpRegisters;
+    private List<Register> _instructionNoReadWriteGpRegisters;
 
     /// <summary>
     /// General purpose registers that aren't read or written and also don't need to be kept by the instruction.
     /// I.e., cluttering these registers is fine.
     /// </summary>
-    private  List<Register> _instructionNoReadWriteKeepGpRegisters;
+    private List<Register> _instructionNoReadWriteKeepGpRegisters;
 
     /// <summary>
     /// General purpose registers which have been saved before using them as toy registers.
@@ -44,20 +44,20 @@ public class ToyRegisterAllocator
     private ToyRegister _flagsRegister = null;
 
     /// <summary>
-    /// Tracks whether flags need to be restored.
+    /// Tracks the currently saved status flags.
     /// </summary>
-    private bool _needsFlagRestore = false;
+    private RflagsBits[] _savedFlags = null;
 
     /// <summary>
     /// Vector registers that aren't read or written by the instruction.
     /// </summary>
-    private  List<Register> _instructionNoReadWriteVectorRegisters;
+    private List<Register> _instructionNoReadWriteVectorRegisters;
 
     /// <summary>
     /// Vector registers that aren't read or written and also don't need to be kept by the instruction.
     /// I.e., cluttering these registers is fine.
     /// </summary>
-    private  List<Register> _instructionNoReadWriteKeepVectorRegisters;
+    private List<Register> _instructionNoReadWriteKeepVectorRegisters;
 
     /// <summary>
     /// Vector registers which have been saved before using them as toy registers.
@@ -69,6 +69,11 @@ public class ToyRegisterAllocator
     /// This ensures that toy registers are re-used efficiently, avoiding performance penalties from unnecessary saving/restoring.
     /// </summary>
     private readonly HashSet<Register> _freedVectorRegisters = new();
+
+    /// <summary>
+    /// Vector registers that are marked as reserved and thus are never allocated.
+    /// </summary>
+    private static readonly HashSet<Register> _reservedVectorRegisters = new();
 
     public ToyRegisterAllocator(Assembler assembler, AnalysisResult.InstructionData instructionData)
     {
@@ -100,6 +105,14 @@ public class ToyRegisterAllocator
             .Except(_instructionData.KeepRegisters)
             .Select(r => RegisterExtensions.Vector256Lookup[r].Value)
             .ToList();
+    }
+
+    public static void MarkRegisterAsReserved(Register register)
+    {
+        if(register.IsVectorRegister())
+            _reservedVectorRegisters.Add(RegisterExtensions.Vector256Lookup[register]);
+        else
+            throw new InvalidOperationException();
     }
 
     public ToyRegister AllocateToyRegisterUnused(IEnumerable<Register> excludedRegisters = null, int preferredWidth = 0)
@@ -173,48 +186,59 @@ public class ToyRegisterAllocator
         _freedGpRegisters.Add(toy.Reg64);
     }
 
-    public GenericAssemblerVectorRegister AllocateToyVectorRegister()
+    public GenericAssemblerVectorRegister AllocateToyVectorRegister(int preferredWidth = 0)
     {
         // Short path for toy registers which were already used
         if(_freedVectorRegisters.Count > 0)
         {
             var register = _freedVectorRegisters.First();
             _freedVectorRegisters.Remove(register);
-            return new GenericAssemblerVectorRegister(register);
+            return new GenericAssemblerVectorRegister(register) { PreferredWidth = preferredWidth };
         }
 
         // Find usable register
-        if(_instructionNoReadWriteKeepVectorRegisters.Count > 0)
+        for(int i = 0; i < _instructionNoReadWriteKeepVectorRegisters.Count; ++i)
         {
-            var register = _instructionNoReadWriteKeepVectorRegisters[0];
+            var register = _instructionNoReadWriteKeepVectorRegisters[i];
 
-            // Do not allocate it again in the future
-            _instructionNoReadWriteVectorRegisters.Remove(register);
-            _instructionNoReadWriteKeepVectorRegisters.RemoveAt(0);
+            if(!_reservedVectorRegisters.Contains(register))
+            {
+                // Do not allocate it again in the future
+                _instructionNoReadWriteVectorRegisters.Remove(register);
+                _instructionNoReadWriteKeepVectorRegisters.RemoveAt(i);
 
-            // The register does not need to be saved
-            return new GenericAssemblerVectorRegister(register);
+                // The register does not need to be saved
+                return new GenericAssemblerVectorRegister(register) { PreferredWidth = preferredWidth };
+            }
         }
-        else
+
+        // No hit, we need to save one
+        for(int i = 0; i < _instructionNoReadWriteVectorRegisters.Count; ++i)
         {
-            var register = _instructionNoReadWriteVectorRegisters[0];
-            _instructionNoReadWriteVectorRegisters.RemoveAt(0);
+            var register = _instructionNoReadWriteVectorRegisters[i];
 
-            var asmRegister = new GenericAssemblerVectorRegister(register);
+            if(!_reservedVectorRegisters.Contains(register))
+            {
+                _instructionNoReadWriteVectorRegisters.RemoveAt(i);
 
-            // Save register
-            // For now we use the stack as a thread-safe way for storing toy registers. This works as long as the stack pointer is
-            // not modified, i.e., we don't use this method for instrumenting push/pop and call.
-            // We subtract 128 to ensure that we don't write into the red zone.
-            // TODO Ensure in push/pop instrumentation that this method is indeed safe
-            // TODO Mask register value if necessary
-            Console.WriteLine("WARNING: Saving vector register"); // Remove this after addressing the above TODOs
-            int registerIndex = register.GetNumber();
-            _assembler.vmovdqu(__ymmword_ptr[rsp - 128 - 32 * (registerIndex + 1)], asmRegister.RegYMM);
+                var asmRegister = new GenericAssemblerVectorRegister(register) { PreferredWidth = preferredWidth };
 
-            _savedVectorRegisters.Add(register);
-            return asmRegister;
+                // Save register
+                // For now we use the stack as a thread-safe way for storing toy registers. This works as long as the stack pointer is
+                // not modified, i.e., we don't use this method for instrumenting push/pop and call.
+                // We subtract 128 to ensure that we don't write into the red zone.
+                // TODO Ensure in push/pop instrumentation that this method is indeed safe
+                // TODO Mask register value if necessary
+                Console.WriteLine("WARNING: Saving vector register"); // Remove this after addressing the above TODOs
+                int registerIndex = register.GetNumber();
+                _assembler.vmovdqu(__ymmword_ptr[rsp - 128 - 32 * (registerIndex + 1)], asmRegister.RegYMM);
+
+                _savedVectorRegisters.Add(register);
+                return asmRegister;
+            }
         }
+
+        throw new Exception("No vector toy available.");
     }
 
     public void FreeToyVectorRegister(GenericAssemblerVectorRegister register)
@@ -227,36 +251,91 @@ public class ToyRegisterAllocator
         if(_flagsRegister != null)
             throw new InvalidOperationException("Cannot save flags twice.");
 
-        if(!flags.Any())
+        var flagArray = flags.ToArray();
+        if(!flagArray.Any())
             return;
-
-        // TODO This needs optimization. pushf/popf are slow and may leak flags to the stack
-        //      Experiments with tweetnacl show that these instructions are _very_ rarely needed. So probably not worth the effort
-        //      But this may overwrite data in leaf functions which use the red zone, which is bad
 
         // Allocate toy register
         _flagsRegister = AllocateToyRegister();
 
-        // Store flags
-        _assembler.DebugMarkSkippableSectionBegin();
-        _assembler.pushfq();
-        _assembler.pop(_flagsRegister.Reg64);
-        _assembler.DebugMarkSkippableSectionEnd();
+        // Fast path for single flags
+        if(flagArray.Length == 1)
+        {
+            switch(flagArray[0])
+            {
+                case RflagsBits.OF:
+                    _assembler.seto(_flagsRegister.Reg8);
+                    break;
+                case RflagsBits.SF:
+                    _assembler.sets(_flagsRegister.Reg8);
+                    break;
+                case RflagsBits.ZF:
+                    _assembler.setz(_flagsRegister.Reg8);
+                    break;
+                case RflagsBits.AF:
+                    _assembler.seta(_flagsRegister.Reg8);
+                    break;
+                case RflagsBits.CF:
+                    _assembler.setc(_flagsRegister.Reg8);
+                    break;
+                case RflagsBits.PF:
+                    _assembler.setp(_flagsRegister.Reg8);
+                    break;
+                default:
+                    throw new Exception("Unsupported flag");
+            }
+        }
+        else
+        {
+            Console.WriteLine("  WARNING: Using pushf to save flags");
+            
+            // Save flags on the stack
+            // TODO This may overwrite data in leaf functions which use the red zone, which is bad
+            _assembler.DebugMarkSkippableSectionBegin();
+            _assembler.pushfq();
+            _assembler.pop(_flagsRegister.Reg64);
+            _assembler.DebugMarkSkippableSectionEnd();
+        }
 
-        _needsFlagRestore = true;
+        _savedFlags = flagArray;
     }
 
     public void RestoreFlags()
-    {
-        // Restore flags
-        _assembler.DebugMarkSkippableSectionBegin();
-        _assembler.push(_flagsRegister.Reg64);
-        _assembler.popfq();
-        _assembler.DebugMarkSkippableSectionEnd();
+    {// Fast path for single flags
+        if(_savedFlags.Length == 1)
+        {
+            switch(_savedFlags[0])
+            {
+                case RflagsBits.OF:
+                    throw new NotSupportedException("Missing handler for O flag");
+                case RflagsBits.SF:
+                    throw new NotSupportedException("Missing handler for S flag");
+                case RflagsBits.ZF:
+                    _assembler.sub(_flagsRegister.Reg8, 1);
+                    break;
+                case RflagsBits.AF:
+                    throw new NotSupportedException("Missing handler for A flag");
+                case RflagsBits.CF:
+                    _assembler.add(_flagsRegister.Reg8, 255);
+                    break;
+                case RflagsBits.PF:
+                    throw new NotSupportedException("Missing handler for P flag");
+                default:
+                    throw new Exception("Unsupported flag");
+            }
+        }
+        else
+        {
+            // Restore flags from the stack
+            _assembler.DebugMarkSkippableSectionBegin();
+            _assembler.push(_flagsRegister.Reg64);
+            _assembler.popfq();
+            _assembler.DebugMarkSkippableSectionEnd();
+        }
 
         FreeToyRegister(_flagsRegister);
         _flagsRegister = null;
-        _needsFlagRestore = false;
+        _savedFlags = null;
     }
 
     /// <summary>
@@ -268,7 +347,7 @@ public class ToyRegisterAllocator
         bool instructionsEmitted = false;
 
         // Restore flags
-        if(_needsFlagRestore)
+        if(_savedFlags != null)
         {
             RestoreFlags();
             instructionsEmitted = true;

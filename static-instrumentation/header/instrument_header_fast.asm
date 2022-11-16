@@ -21,7 +21,6 @@
 %define MO_ALLOC_TRACKER_OFFSET (MO_HEADER_ADDR_LIST_OFFSET+MO_HEADER_ADDR_LIST_COUNT*8)
 %define MO_ALLOC_TRACKER_SIZE 8
 
-
 ; Offset of the chunk length for a heap object (depends on the malloc implementation)
 %define HEAP_CHUNK_LENGTH_OFFSET -8
 
@@ -121,6 +120,9 @@ library_init.constructor_jump:
 ; function additionally calls some initialization functions which must run once and as early as possible.
 register_management_object:
 	
+	; State for fast RNG
+	sub rsp, 16*0x10
+
 	; Allocate
 	mov eax, 9 ; mmap(2)
 	mov rdi, MANAGEMENT_OBJECT_ADDRESS ; addr
@@ -159,6 +161,34 @@ register_management_object:
 	; Initialize allocation tracker
 	mov rdi, MANAGEMENT_OBJECT_ADDRESS+MO_ALLOC_TRACKER_OFFSET
 	mov qword [rdi], 1	
+
+	; Initialize RNG
+	mov rax, 32
+	.rng_loop:
+		rdrand rdi
+		jnc .rng_loop
+
+		mov qword [rsp+8*rax-8], rdi
+
+		dec rax
+		jne .rng_loop
+	
+	vmovdqu xmm0, oword [rsp+0x00]
+	vmovdqu xmm1, oword [rsp+0x10]
+	vmovdqu xmm2, oword [rsp+0x20]
+	vmovdqu xmm3, oword [rsp+0x30]
+	vmovdqu xmm4, oword [rsp+0x40]
+	vmovdqu xmm5, oword [rsp+0x50]
+	vmovdqu xmm6, oword [rsp+0x60]
+	vmovdqu xmm7, oword [rsp+0x70]
+	vmovdqu xmm8, oword [rsp+0x80]
+	vmovdqu xmm9, oword [rsp+0x90]
+	vmovdqu xmm10, oword [rsp+0xa0]
+	vmovdqu xmm11, oword [rsp+0xb0]
+	vmovdqu xmm12, oword [rsp+0xc0]
+	vmovdqu xmm13, oword [rsp+0xd0]
+	vmovdqu xmm14, oword [rsp+0xe0]
+	vmovdqu xmm15, oword [rsp+0xf0]
 	
 	; Install int3 signal handler
 	call set_up_signal_handler
@@ -188,6 +218,8 @@ register_management_object:
 	lea rdx, [rel instrument_header_begin]
 	mov qword [rax+8*rcx], rdx
 	
+	add rsp, 16*0x10
+
 	ret
 
 

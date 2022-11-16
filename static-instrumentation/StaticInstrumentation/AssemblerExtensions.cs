@@ -165,4 +165,14 @@ public static class AssemblerExtensions
         else
             throw new InvalidOperationException("Unsupported / invalid preferred register width.");
     }
+
+    public static void vpxor(this Assembler assembler, GenericAssemblerVectorRegister dst, GenericAssemblerVectorRegister src1, GenericAssemblerVectorRegister src2)
+    {
+        if(dst.PreferredWidth == 16)
+            assembler.vpxor(dst.RegXMM, src1.RegXMM, src2.RegXMM);
+        else if(dst.PreferredWidth == 32)
+            assembler.vpxor(dst.RegYMM, src1.RegYMM, src2.RegYMM);
+        else
+            throw new InvalidOperationException("Unsupported / invalid preferred register width.");
+    }
 }

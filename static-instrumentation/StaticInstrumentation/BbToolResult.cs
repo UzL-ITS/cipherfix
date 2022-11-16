@@ -19,6 +19,7 @@ public class BbToolResult
     public List<SyscallData> Syscalls { get; } = new();
     public HashSet<(int imageId, uint offset)> Mallocs { get; } = new();
     public HashSet<(int imageId, uint offset)> Reallocs { get; } = new();
+    public HashSet<Register> UsedRegisters { get; } = new();
 
     private BbToolResult()
     {
@@ -182,6 +183,9 @@ public class BbToolResult
                         accessInfo |= AccessInfo.Keep;
 
                     registerData.Add((registers[i].Value, accessInfo));
+
+                    if(accessInfo != 0)
+                        result.UsedRegisters.Add(registers[i].Value);
                 }
 
                 uint offset = (uint)(instructionAddress - imageData.Value.BaseAddress);

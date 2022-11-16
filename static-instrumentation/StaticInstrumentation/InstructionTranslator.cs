@@ -21,11 +21,9 @@ public partial class InstructionTranslator
 
     public List<Instruction> InstrumentMemoryAccessInstruction(Instruction instruction, AnalysisResult.InstructionData instructionData, out bool isWrite)
     {
-        // TODO check status flag handling. Why does pushf not occur more often, if WriteFlags is used?
-
         // Initialize fresh state
         _assembler.Reset();
-        ToyRegisterAllocator registerAllocator = new(_assembler, instructionData);
+        var registerAllocator = new ToyRegisterAllocator(_assembler, instructionData);
 
         // Indicates that there is a label which is not immediately followed by an instruction
         // If this is true after generating instruction instrumentation, a dummy instruction is generated
@@ -484,20 +482,17 @@ public partial class InstructionTranslator
                     // Ensure that previous status flags are preserved, if they are used
                     registerAllocator.SaveFlags(instructionData.KeepFlags);
 
-                    using var maskToy = registerAllocator.AllocateToyRegister(preferredWidth: 8);
-                    var vectorToy = registerAllocator.AllocateToyVectorRegister();
+                    var vectorToy = registerAllocator.AllocateToyVectorRegister(preferredWidth: width);
 
                     // Generate and store new mask
                     _assembler.DebugMarkSkippableSectionBegin();
                     if(MaskUtils.UseSecrecyBuffer)
                     {
-                        MaskUtils.GenerateMask(_assembler, maskToy.Reg64);
+                        MaskUtils.GenerateMask(_assembler, vectorToy, registerAllocator)?.Free(); // Discard potentially allocated small mask toy register
 
-                        // Fill mask into vector register, store it, and apply secrecy value, if necessary
-                        _assembler.vmovq(vectorToy.RegXMM, maskToy.Reg64);
+                        // Store mask, and apply secrecy value, if necessary
                         if(width == 16)
                         {
-                            _assembler.vpbroadcastq(vectorToy.RegXMM, vectorToy.RegXMM);
                             _assembler.vmovdqu(__xmmword_ptr[memoryOperand + MaskUtils.MaskBufferOffset], vectorToy.RegXMM);
 
                             if(!instructionData.AccessesOnlySecretBlocks)
@@ -505,7 +500,6 @@ public partial class InstructionTranslator
                         }
                         else if(width == 32)
                         {
-                            _assembler.vpbroadcastq(vectorToy.RegYMM, vectorToy.RegXMM);
                             _assembler.vmovdqu(__ymmword_ptr[memoryOperand + MaskUtils.MaskBufferOffset], vectorToy.RegYMM);
 
                             if(!instructionData.AccessesOnlySecretBlocks)
@@ -517,28 +511,27 @@ public partial class InstructionTranslator
                         Label skipMaskUpdateLabel = _assembler.CreateLabel();
                         if(!instructionData.AccessesOnlySecretBlocks)
                         {
+                            // Automatic freeing of the toy register does not generate new instructions, so using "Dispose" is safe
+                            using var maskToy = registerAllocator.AllocateToyRegister(preferredWidth: 8);
+
+                            // If the mask check is negative, we need to be sure that the mask vector register is zero
+                            _assembler.vpxor(vectorToy, vectorToy, vectorToy);
+
                             _assembler.mov(maskToy.Reg64, __qword_ptr[memoryOperand + MaskUtils.MaskBufferOffset]);
                             _assembler.test(maskToy.Reg64, maskToy.Reg64);
                             _assembler.je(skipMaskUpdateLabel);
                         }
 
-                        MaskUtils.GenerateMask(_assembler, maskToy.Reg64);
+                        MaskUtils.GenerateMask(_assembler, vectorToy, registerAllocator)?.Free(); // Discard potentially allocated small mask toy register
 
                         if(!instructionData.AccessesOnlySecretBlocks)
                             _assembler.Label(ref skipMaskUpdateLabel);
 
-                        // Fill mask into vector register and store it
-                        _assembler.vmovq(vectorToy.RegXMM, maskToy.Reg64);
+                        // Store mask
                         if(width == 16)
-                        {
-                            _assembler.vpbroadcastq(vectorToy.RegXMM, vectorToy.RegXMM);
                             _assembler.vmovdqu(__xmmword_ptr[memoryOperand + MaskUtils.MaskBufferOffset], vectorToy.RegXMM);
-                        }
                         else if(width == 32)
-                        {
-                            _assembler.vpbroadcastq(vectorToy.RegYMM, vectorToy.RegXMM);
                             _assembler.vmovdqu(__ymmword_ptr[memoryOperand + MaskUtils.MaskBufferOffset], vectorToy.RegYMM);
-                        }
                     }
 
                     _assembler.DebugMarkSkippableSectionEnd();
@@ -562,6 +555,8 @@ public partial class InstructionTranslator
                     }
                     else
                         throw new NotSupportedException("Unsupported vector size.");
+
+                    registerAllocator.FreeToyVectorRegister(vectorToy);
 
                     _assembler.DebugMarkMemtraceSectionEnd();
                 }
