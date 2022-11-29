@@ -72,7 +72,9 @@ public static class Program
 
             MaskUtils.DebugForceZeroMask = argFlags.Contains("zeromask");
             MaskUtils.DebugForceConstantMask = !MaskUtils.DebugForceZeroMask && argFlags.Contains("constmask");
-            MaskUtils.UseFastRng = argFlags.Contains("aesrng");
+            MaskUtils.UseAesRng = argFlags.Contains("aesrng");
+            MaskUtils.UseGf61Rng = argFlags.Contains("gf61rng");
+            MaskUtils.UseGf63Rng = argFlags.Contains("gf63rng");
             AssemblerExtensions.DebugInsertMarkersForMaskingCode = argFlags.Contains("debugtracemarker");
             AssemblerExtensions.DebugInsertMarkersForMemtraceEvaluation = argFlags.Contains("evalmarker");
             _debug = argFlags.Contains("dumpinstr");
@@ -100,7 +102,7 @@ public static class Program
         _bbToolResult = BbToolResult.FromFile(Path.Join(_inputDirectory, "structure.out"));
 
         // Identify available vector registers for mask generation
-        if(MaskUtils.UseFastRng)
+        if(MaskUtils.UseAesRng || MaskUtils.UseGf61Rng || MaskUtils.UseGf63Rng)
         {
             var availableVectorRegisters = RegisterExtensions.VectorRegisters
                 .Except(
@@ -123,11 +125,28 @@ public static class Program
             }
 
             MaskUtils.FastRngKey = RegisterExtensions.Vector128Lookup[availableVectorRegisters[^1]];
-            MaskUtils.FastRngState =  RegisterExtensions.Vector128Lookup[availableVectorRegisters[^2]];
+            MaskUtils.FastRngState = RegisterExtensions.Vector128Lookup[availableVectorRegisters[^2]];
             ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngKey.Value);
             ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngState.Value);
-            
-            Console.WriteLine($"Allocated fixed RNG vector registers: {MaskUtils.FastRngState.Value.Value} {MaskUtils.FastRngKey.Value.Value}");
+
+            if(MaskUtils.UseGf61Rng || MaskUtils.UseGf63Rng)
+            {
+                if(availableVectorRegisters.Count < 3)
+                {
+                    Console.WriteLine("ERROR: (GF(2^n) RNG) Too few available vector registers");
+                    return;
+                }
+
+                if(availableVectorRegisters.Count < 4)
+                {
+                    Console.WriteLine("WARNING: (GF(2^n) RNG) No remaining vector register for fast general-purpose register save/restore");
+                }
+
+                MaskUtils.FastRngHelp = RegisterExtensions.Vector128Lookup[availableVectorRegisters[^3]];
+                ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngHelp.Value);
+            }
+
+            Console.WriteLine($"Allocated fixed RNG vector registers: {MaskUtils.FastRngState.Value.Value} {MaskUtils.FastRngKey.Value.Value} {MaskUtils.FastRngHelp.Value.Value}");
         }
 
         // Find images to be instrumented

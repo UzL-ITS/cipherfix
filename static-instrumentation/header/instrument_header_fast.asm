@@ -167,7 +167,8 @@ register_management_object:
 	.rng_loop:
 		rdrand rdi
 		jnc .rng_loop
-
+		
+		shl rdi, 3 ; For GF(2^61)
 		mov qword [rsp+8*rax-8], rdi
 
 		dec rax
