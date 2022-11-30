@@ -129,6 +129,10 @@ public static class Program
             ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngKey.Value);
             ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngState.Value);
 
+            Console.WriteLine("Allocated fixed RNG vector registers:");
+            Console.WriteLine($"  State: {MaskUtils.FastRngState.Value.Value}");
+            Console.WriteLine($"  Key: {MaskUtils.FastRngKey.Value.Value}");
+
             if(MaskUtils.UseGf61Rng || MaskUtils.UseGf63Rng)
             {
                 if(availableVectorRegisters.Count < 3)
@@ -144,9 +148,9 @@ public static class Program
 
                 MaskUtils.FastRngHelp = RegisterExtensions.Vector128Lookup[availableVectorRegisters[^3]];
                 ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngHelp.Value);
+                
+                Console.WriteLine($"  Help: {MaskUtils.FastRngHelp.Value.Value}");
             }
-
-            Console.WriteLine($"Allocated fixed RNG vector registers: {MaskUtils.FastRngState.Value.Value} {MaskUtils.FastRngKey.Value.Value} {MaskUtils.FastRngHelp.Value.Value}");
         }
 
         // Find images to be instrumented
