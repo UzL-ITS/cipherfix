@@ -287,8 +287,8 @@ public class ToyRegisterAllocator
         }
         else
         {
-            Console.WriteLine("  WARNING: Using pushf to save flags");
-            
+            Console.WriteLine($"  WARNING: Using pushf to save flags: {string.Join(' ', flagArray.Select(f => f.ToString()))}");
+
             // Save flags on the stack
             // TODO This may overwrite data in leaf functions which use the red zone, which is bad
             _assembler.DebugMarkSkippableSectionBegin();
@@ -301,7 +301,8 @@ public class ToyRegisterAllocator
     }
 
     public void RestoreFlags()
-    {// Fast path for single flags
+    {
+        // Fast path for single flags
         if(_savedFlags.Length == 1)
         {
             switch(_savedFlags[0])
