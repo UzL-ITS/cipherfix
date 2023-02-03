@@ -1232,7 +1232,7 @@ public partial class InstructionTranslator
                     registerAllocator.SaveFlags(instructionData.KeepFlags);
 
                     var destRegister = new GenericAssemblerVectorRegister(registerOperands[0].register);
-                    using var toy = registerAllocator.AllocateToyRegister();
+                    using var toy = registerAllocator.AllocateToyRegister(preferredWidth: width);
 
                     // Read stored value and decode it
                     _assembler.mov(toy, __width_ptr[memoryOperand + MaskUtils.MaskBufferOffset]);
