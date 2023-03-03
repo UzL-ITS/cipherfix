@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -188,8 +188,7 @@ public static class Program
         var callStacksWithoutMalloc = _analysisResult.HeapMemoryBlocks
             .Where(b => b.Value.CallStack.Count > 0
                         && b.Value.CallStack
-                            .All(c => !_bbToolResult.Mallocs.Contains((c.TargetImageId, (uint)c.TargetImageOffset))
-                                      && !_bbToolResult.Reallocs.Contains((c.TargetImageId, (uint)c.TargetImageOffset))))
+                            .All(c => !_bbToolResult.Allocs.ContainsKey((c.TargetImageId, (uint)c.TargetImageOffset))))
             .Select(b => b.Value.CallStack)
             .ToList();
         if(callStacksWithoutMalloc.Count > 0)
@@ -321,7 +320,7 @@ public static class Program
                 }
 
                 // Do not instrument calls below the *alloc() call
-                if(_bbToolResult.Mallocs.Contains(targetKey) || _bbToolResult.Reallocs.Contains(targetKey))
+                if(_bbToolResult.Allocs.ContainsKey(targetKey))
                     break;
             }
         }
@@ -676,8 +675,7 @@ public static class Program
                 var currentInstruction = bb.Instructions[i];
 
                 // Precomputation: Find out whether this is a malloc() or realloc() call
-                bool isMallocCall = false;
-                bool isReallocCall = false;
+                BbToolResult.AllocFunctionType? allocFunctionType = null;
                 if(currentInstruction.Instruction.Mnemonic == Mnemonic.Call)
                 {
                     // Iterate through all call stacks and look for this instruction
@@ -685,15 +683,9 @@ public static class Program
                     {
                         if(call.SourceImageId == imageId && call.SourceImageOffset == currentInstruction.OldAddress)
                         {
-                            if(_bbToolResult.Mallocs.Contains((call.TargetImageId, (uint)call.TargetImageOffset)))
+                            if(_bbToolResult.Allocs.ContainsKey((call.TargetImageId, (uint)call.TargetImageOffset)))
                             {
-                                isMallocCall = true;
-                                break;
-                            }
-
-                            if(_bbToolResult.Reallocs.Contains((call.TargetImageId, (uint)call.TargetImageOffset)))
-                            {
-                                isReallocCall = true;
+                                allocFunctionType = _bbToolResult.Allocs[(call.TargetImageId, (uint)call.TargetImageOffset)];
                                 break;
                             }
                         }
@@ -898,7 +890,7 @@ public static class Program
                     // We may need to save RAX, if this is an indirect call (`call rax` or `call [rax+0x10]`), or if RAX is used
                     InstructionInstrumentationData beforeSaveRaxInstruction = null;
                     Register raxSaveReg = Register.None;
-                    if((instructionAnalysisData.ReadRegisters.Contains(Register.RAX) || instructionAnalysisData.KeepRegisters.Contains(Register.RAX)) && !isMallocCall && !isReallocCall)
+                    if((instructionAnalysisData.ReadRegisters.Contains(Register.RAX) || instructionAnalysisData.KeepRegisters.Contains(Register.RAX)) && allocFunctionType == null)
                     {
                         // Pick suitable register for saving RAX
                         var availableRegisters = ToyRegisterAllocator.GeneralPurposeRegisters
@@ -974,9 +966,15 @@ public static class Program
 
                     // If this is a call to *alloc, replace it by a call to the appropriate handler function.
                     // Else, leave it as is
-                    if(isMallocCall || isReallocCall)
+                    if(allocFunctionType != null)
                     {
-                        string allocName = isMallocCall ? "malloc" : "realloc";
+                        string allocName = allocFunctionType switch
+                        {
+                            BbToolResult.AllocFunctionType.Malloc => "malloc",
+                            BbToolResult.AllocFunctionType.Calloc => "calloc",
+                            BbToolResult.AllocFunctionType.Realloc => "realloc",
+                            _ => throw new Exception("Unexpected allocation function type")
+                        };
 
                         if(_debug)
                             Console.WriteLine($"  Instrumenting {allocName}() call at #{currentInstruction.OldAddress:x}");

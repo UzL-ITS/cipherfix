@@ -17,8 +17,7 @@ public class BbToolResult
     public List<BasicBlockData> BasicBlocks { get; } = new();
     public Dictionary<(int imageId, uint offset), InstructionData> Instructions { get; } = new();
     public List<SyscallData> Syscalls { get; } = new();
-    public HashSet<(int imageId, uint offset)> Mallocs { get; } = new();
-    public HashSet<(int imageId, uint offset)> Reallocs { get; } = new();
+    public Dictionary<(int imageId, uint offset), AllocFunctionType> Allocs { get; } = new();
     public HashSet<Register> UsedRegisters { get; } = new();
 
     private BbToolResult()
@@ -216,10 +215,15 @@ public class BbToolResult
                     continue;
                 }
 
-                if(type == 'm')
-                    result.Mallocs.Add((imageData.Key, (uint)(address - imageData.Value.BaseAddress)));
-                else if(type == 'r')
-                    result.Reallocs.Add((imageData.Key, (uint)(address - imageData.Value.BaseAddress)));
+                AllocFunctionType allocFunctionType = type switch
+                {
+                    'm' => AllocFunctionType.Malloc,
+                    'c' => AllocFunctionType.Calloc,
+                    'r' => AllocFunctionType.Realloc,
+                    _ => throw new Exception($"Unknown allocation function type '{type}'")
+                };
+
+                result.Allocs.Add((imageData.Key, (uint)(address - imageData.Value.BaseAddress)), allocFunctionType);
             }
         }
 
@@ -240,5 +244,12 @@ public class BbToolResult
         Read = 1,
         Write = 2,
         Keep = 4
+    }
+
+    public enum AllocFunctionType
+    {
+        Malloc,
+        Calloc,
+        Realloc
     }
 }
