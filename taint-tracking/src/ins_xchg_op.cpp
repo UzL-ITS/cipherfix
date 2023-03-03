@@ -1,6 +1,7 @@
 #include "ins_xchg_op.h"
 #include "ins_helper.h"
 #include "ins_xfer_op.h"
+#include "log.h"
 
 #include <string>
 using std::string;
@@ -511,9 +512,7 @@ void ins_cmpxchg_op(INS ins) {
                          REG_INDX(reg_dst), IARG_UINT32, REG_INDX(reg_src),
                          IARG_END);
     } else {
-      xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-      LOG(string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) +
-          ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
   } else {
     reg_src = INS_OperandReg(ins, OP_1);
@@ -542,9 +541,7 @@ void ins_cmpxchg_op(INS ins) {
                          IARG_MEMORYWRITE_EA, IARG_UINT32, REG_INDX(reg_src),
                          IARG_END);
     } else {
-      xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-      LOG(string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) +
-          ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
   }
 }

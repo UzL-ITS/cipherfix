@@ -1,5 +1,6 @@
 #include "ins_ternary_op.h"
 #include "ins_helper.h"
+#include "log.h"
 
 /* threads context */
 extern thread_ctx_t *threads_ctx;
@@ -149,8 +150,7 @@ void ins_pmovmskb_op(INS ins) {
                        IARG_UINT32, REG_INDX(reg_src),
                        IARG_END);
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -177,8 +177,7 @@ void ins_pminub_op(INS ins) {
                            IARG_REG_CONST_REFERENCE, reg_src,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         reg_dst = INS_OperandReg(ins, OP_0);
@@ -197,8 +196,7 @@ void ins_pminub_op(INS ins) {
                            IARG_MEMORYREAD_EA,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -232,8 +230,7 @@ void ins_vpminub_op(INS ins) {
                            IARG_REG_CONST_REFERENCE, reg_src2,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         reg_src1 = INS_OperandReg(ins, OP_1);
@@ -256,8 +253,7 @@ void ins_vpminub_op(INS ins) {
                            IARG_MEMORYREAD_EA,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -452,8 +448,7 @@ void ins_ternary_op(INS ins) {
                            IARG_MEMORYREAD_EA,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_src1 = INS_OperandReg(ins, OP_1);
@@ -487,8 +482,7 @@ void ins_ternary_op(INS ins) {
                            IARG_UINT32, REG_INDX(reg_dst),
                            IARG_END);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -635,14 +629,13 @@ void ins_sarx_op(INS ins) {
                                IARG_UINT32, 8,
                                IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         if (REG_is_gr32(reg_dst)) {
             INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)m_reg_sarx_op,
                                IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                               IARG_MEMORYWRITE_EA,
+                               IARG_MEMORYREAD_EA,
                                IARG_UINT32, REG_INDX(reg_dst),
                                IARG_REG_CONST_REFERENCE, reg_cnt,
                                IARG_UINT32, 4,
@@ -650,14 +643,13 @@ void ins_sarx_op(INS ins) {
         } else if (REG_is_gr64(reg_dst)) {
             INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)m_reg_sarx_op,
                                IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
-                               IARG_MEMORYWRITE_EA,
+                               IARG_MEMORYREAD_EA,
                                IARG_UINT32, REG_INDX(reg_dst),
                                IARG_REG_CONST_REFERENCE, reg_cnt,
                                IARG_UINT32, 8,
                                IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -696,8 +688,7 @@ void ins_pinsrd_op(INS ins) {
                                IARG_UINT32, imm,
                                IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_src = INS_OperandReg(ins, OP_1);
@@ -709,8 +700,69 @@ void ins_pinsrd_op(INS ins) {
                                IARG_UINT32, imm,
                                IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
+        }
+    }
+}
+
+static void PIN_FAST_ANALYSIS_CALL m2r_vpinsrq_opx(THREADID tid, uint32_t dst, uint32_t src1, ADDRINT src2, uint32_t imm) {
+    tag_t src1_tags[] = R128TAG(src1);
+    tag_t src2_tags[] = M64TAG(src2);
+
+    for (size_t i = 0; i < 8; ++i)
+    {
+        RTAG[dst][8 * (1 - imm) + i] = src1_tags[8 * (1 - imm) + i];
+    }
+
+    for (size_t i = 0; i < 8; ++i)
+    {
+        RTAG[dst][8 * imm + i] = src2_tags[i];
+    }
+}
+
+static void PIN_FAST_ANALYSIS_CALL r2r_vpinsrq_opx(THREADID tid, uint32_t dst, uint32_t src1, uint32_t src2, uint32_t imm) {
+    tag_t src1_tags[] = R128TAG(src1);
+    tag_t src2_tags[] = R64TAG(src2);
+
+    for (size_t i = 0; i < 8; ++i)
+    {
+        RTAG[dst][8 * (1 - imm) + i] = src1_tags[8 * (1 - imm) + i];
+    }
+
+    for (size_t i = 0; i < 8; ++i)
+    {
+        RTAG[dst][8 * imm + i] = src2_tags[i];
+    }
+}
+
+void ins_vpinsrq_op(INS ins) {
+    REG reg_dst = INS_OperandReg(ins, OP_0);
+    REG reg_src1 = INS_OperandReg(ins, OP_1);
+    UINT32 imm = INS_OperandImmediate(ins, OP_3) & 0x1;
+    if (INS_OperandIsMemory(ins, OP_2)) {
+        if (REG_is_xmm(reg_dst)) {
+            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)m2r_vpinsrq_opx,
+                               IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                               IARG_UINT32, REG_INDX(reg_dst),
+                               IARG_UINT32, REG_INDX(reg_src1),
+                               IARG_MEMORYREAD_EA,
+                               IARG_UINT32, imm,
+                               IARG_END);
+        } else {
+            LOG_UNHANDLED_OPCODE(ins);
+        }
+    } else {
+        REG reg_src2 = INS_OperandReg(ins, OP_2);
+        if (REG_is_xmm(reg_dst)) {
+            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)r2r_vpinsrq_opx,
+                               IARG_FAST_ANALYSIS_CALL, IARG_THREAD_ID,
+                               IARG_UINT32, REG_INDX(reg_dst),
+                               IARG_UINT32, REG_INDX(reg_src1),
+                               IARG_UINT32, REG_INDX(reg_src2),
+                               IARG_UINT32, imm,
+                               IARG_END);
+        } else {
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -777,8 +829,7 @@ void ins_vinserti_op(INS ins) {
                            IARG_UINT32, imm,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_src2 = INS_OperandReg(ins, OP_2);
@@ -789,5 +840,116 @@ void ins_vinserti_op(INS ins) {
                        IARG_UINT32, REG_INDX(reg_dst),
                        IARG_UINT32, imm,
                        IARG_END);
+    }
+}
+
+void PIN_FAST_ANALYSIS_CALL r2r_combine_allinone_ternary_opx(THREADID tid, uint32_t dst, uint32_t src1, uint32_t src2) {
+    tag_t src1_tag[] = R128TAG(src1);
+    tag_t src2_tag[] = R128TAG(src2);
+    tag_t dst_tag[] = R128TAG(dst);
+
+    tag_t combined_tag = tag_traits<tag_t>::cleared_val;
+    for (size_t i = 0; i < 16; ++i) {
+        combined_tag = tag_combine(tag_combine(tag_combine(combined_tag, src1_tag[i]), src2_tag[i]), dst_tag[i]);
+    }
+
+    for (size_t i = 0; i < 16; ++i) {
+        RTAG[dst][i] = combined_tag;
+    }
+}
+
+void PIN_FAST_ANALYSIS_CALL r2r_combine_allinone_ternary_opy(THREADID tid, uint32_t dst, uint32_t src1, uint32_t src2) {
+    tag_t src1_tag[] = R256TAG(src1);
+    tag_t src2_tag[] = R256TAG(src2);
+    tag_t dst_tag[] = R256TAG(dst);
+
+    tag_t combined_tag = tag_traits<tag_t>::cleared_val;
+    for (size_t i = 0; i < 32; ++i) {
+        combined_tag = tag_combine(tag_combine(tag_combine(combined_tag, src1_tag[i]), src2_tag[i]), dst_tag[i]);
+    }
+
+    for (size_t i = 0; i < 32; ++i) {
+        RTAG[dst][i] = combined_tag;
+    }
+}
+
+void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_ternary_opx(THREADID tid, uint32_t dst, uint32_t src1, ADDRINT src2) {
+    tag_t src1_tag[] = R128TAG(src1);
+    tag_t src2_tag[] = M128TAG(src2);
+    tag_t dst_tag[] = R128TAG(dst);
+
+    tag_t combined_tag = tag_traits<tag_t>::cleared_val;
+    for (size_t i = 0; i < 16; ++i) {
+        combined_tag = tag_combine(tag_combine(tag_combine(combined_tag, src1_tag[i]), src2_tag[i]), dst_tag[i]);
+    }
+
+    for (size_t i = 0; i < 16; ++i) {
+        RTAG[dst][i] = combined_tag;
+    }
+}
+
+void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_ternary_opy(THREADID tid, uint32_t dst, uint32_t src1, ADDRINT src2) {
+    tag_t src1_tag[] = R256TAG(src1);
+    tag_t src2_tag[] = M256TAG(src2);
+    tag_t dst_tag[] = R256TAG(dst);
+
+    tag_t combined_tag = tag_traits<tag_t>::cleared_val;
+    for (size_t i = 0; i < 32; ++i) {
+        combined_tag = tag_combine(tag_combine(tag_combine(combined_tag, src1_tag[i]), src2_tag[i]), dst_tag[i]);
+    }
+
+    for (size_t i = 0; i < 32; ++i) {
+        RTAG[dst][i] = combined_tag;
+    }
+}
+
+void ins_combine_all_bytes_in_dst_ternary(INS ins) {
+    REG reg_dst = INS_OperandReg(ins, OP_0);
+    REG reg_src1 = INS_OperandReg(ins, OP_1);
+    if (INS_OperandIsMemory(ins, OP_2)) {
+        if (REG_is_xmm(reg_dst)) {
+            INS_InsertCall(ins, IPOINT_BEFORE,
+                           (AFUNPTR)m2r_combine_allinone_ternary_opx,
+                           IARG_FAST_ANALYSIS_CALL,
+                           IARG_THREAD_ID,
+                           IARG_UINT32, REG_INDX(reg_dst),
+                           IARG_UINT32, REG_INDX(reg_src1),
+                           IARG_MEMORYREAD_EA,
+                           IARG_END);
+        } else if (REG_is_ymm(reg_dst)) {
+            INS_InsertCall(ins, IPOINT_BEFORE,
+                           (AFUNPTR)m2r_combine_allinone_ternary_opy,
+                           IARG_FAST_ANALYSIS_CALL,
+                           IARG_THREAD_ID,
+                           IARG_UINT32, REG_INDX(reg_dst),
+                           IARG_UINT32, REG_INDX(reg_src1),
+                           IARG_MEMORYREAD_EA,
+                           IARG_END);
+        } else {
+            LOG_UNHANDLED_OPCODE(ins);
+        }
+    } else {
+        REG reg_src2 = INS_OperandReg(ins, OP_2);
+        if (REG_is_xmm(reg_dst)) {
+            INS_InsertCall(ins, IPOINT_BEFORE,
+                            (AFUNPTR)r2r_combine_allinone_ternary_opx,
+                            IARG_FAST_ANALYSIS_CALL,
+                            IARG_THREAD_ID,
+                            IARG_UINT32, REG_INDX(reg_dst),
+                            IARG_UINT32, REG_INDX(reg_src1),
+                            IARG_UINT32, REG_INDX(reg_src2),
+                            IARG_END);
+        } else if (REG_is_ymm(reg_dst)) {
+            INS_InsertCall(ins, IPOINT_BEFORE,
+                            (AFUNPTR)r2r_combine_allinone_ternary_opy,
+                            IARG_FAST_ANALYSIS_CALL,
+                            IARG_THREAD_ID,
+                            IARG_UINT32, REG_INDX(reg_dst),
+                            IARG_UINT32, REG_INDX(reg_src1),
+                            IARG_UINT32, REG_INDX(reg_src2),
+                            IARG_END);
+        } else {
+            LOG_UNHANDLED_OPCODE(ins);
+        }
     }
 }

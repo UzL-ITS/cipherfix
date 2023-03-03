@@ -8,6 +8,8 @@
 #include "ins_xchg_op.h"
 #include "ins_xfer_op.h"
 #include "ins_ternary_op.h"
+#include "Utilities.h"
+#include "log.h"
 
 #include <string>
 #include <iostream>
@@ -155,8 +157,7 @@ void ins_inspect(INS ins) {
   xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
   /* sanity check */
   if (unlikely(ins_indx <= XED_ICLASS_INVALID || ins_indx >= XED_ICLASS_LAST)) {
-    LOG(string(__func__) + ": unknown opcode (opcode=" + decstr(ins_indx) +
-        ")\n");
+      CERR_ERROR << "[TAINT] Unknown opcode " << decstr(ins_indx) << ": '" << INS_Disassemble(ins) << "'";
     /* done */
     return;
   }
@@ -456,6 +457,10 @@ void ins_inspect(INS ins) {
         case XED_ICLASS_VPMOVMSKB:
             ins_pmovmskb_op(ins);
             break;
+        case XED_ICLASS_VPMOVZXBW:
+            // Fixme: Does some overtainting
+            ins_combine_all_bytes_in_dst(ins);
+            break;
         case XED_ICLASS_PUNPCKLBW:
             ins_punpcklbw_op(ins);
             break;
@@ -479,6 +484,10 @@ void ins_inspect(INS ins) {
             break;
         case XED_ICLASS_PUNPCKHQDQ:
             ins_punpckhqdq_op(ins);
+            break;
+        case XED_ICLASS_VPUNPCKLBW:
+        case XED_ICLASS_VPUNPCKHBW:
+            ins_combine_all_bytes_in_dst_ternary(ins);
             break;
         case XED_ICLASS_PMULUDQ:
             ins_binary_op(ins);
@@ -521,8 +530,17 @@ void ins_inspect(INS ins) {
         case XED_ICLASS_VPANDN:
             ins_ternary_op(ins);
             break;
+        case XED_ICLASS_VANDPS:
+        case XED_ICLASS_VXORPS:
+            ins_ternary_op(ins);
+            break;
         case XED_ICLASS_PACKUSWB:
-            ins_binary_op(ins);
+            // Fixme: Does some overtainting
+            ins_combine_all_bytes(ins);
+            break;
+        case XED_ICLASS_VPACKUSWB:
+            // Fixme: Does some overtainting
+            ins_combine_all_bytes_in_dst_ternary(ins);
             break;
         case XED_ICLASS_PADDD:
         case XED_ICLASS_PADDQ:
@@ -552,6 +570,9 @@ void ins_inspect(INS ins) {
             break;
         case XED_ICLASS_PINSRD:
             ins_pinsrd_op(ins);
+            break;
+        case XED_ICLASS_VPINSRQ:
+            ins_vpinsrq_op(ins);
             break;
         case XED_ICLASS_SHA1MSG1:
         case XED_ICLASS_SHA1MSG2:
@@ -593,9 +614,12 @@ void ins_inspect(INS ins) {
             ins_ternary_op(ins);
             break;
         case XED_ICLASS_PSHUFB:
-        case XED_ICLASS_VPSHUFB:
             // Fixme: does some overtainting (depending on contents of second operand)
             ins_combine_all_bytes(ins);
+            break;
+        case XED_ICLASS_VPSHUFB:
+            // Fixme: does some overtainting (depending on contents of second operand)
+            ins_combine_all_bytes_in_dst_ternary(ins);
             break;
         case XED_ICLASS_VPUNPCKHQDQ:
             ins_vpunpckhqdq_op(ins);
@@ -683,11 +707,12 @@ void ins_inspect(INS ins) {
             //case XED_ICLASS_SAL:
             ins_shl_op(ins);
             break;
-        case XED_ICLASS_SAR:
+        case XED_ICLASS_SAR:  // Fixme: if flag taint included, this should be adjusted
         case XED_ICLASS_SHR:
             ins_shr_op(ins);
             break;
-        case XED_ICLASS_SARX:
+        case XED_ICLASS_SARX: // Fixme: if flag taint included, this should be adjusted
+        case XED_ICLASS_SHRX:
             ins_sarx_op(ins);
             break;
 
@@ -780,7 +805,11 @@ void ins_inspect(INS ins) {
             // if (ins_ext != 0 && ins_ext != 10)
             LOGD("[uninstrumented] opcode=%d, %s\n", ins_indx, INS_Disassemble(ins).c_str());
 
-            std::cerr << "Uninstrumented opcode " << std::dec << ins_indx << " " << INS_Disassemble(ins) << " at " << std::hex << INS_Address(ins) << std::endl;
+            auto insImage = GetImageByAddress(INS_Address(ins));
+            CERR_ERROR << "[TAINT] Could not instrument unknown instruction "
+                << "'" << INS_Disassemble(ins) << "'"
+				<< " at " << std::hex << insImage->imageId << " " << insImage->GetInsOffset(INS_Address(ins))
+				<< std::endl;
 
             break;
     }

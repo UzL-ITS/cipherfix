@@ -1,5 +1,6 @@
 #include "ins_binary_op.h"
 #include "ins_helper.h"
+#include "log.h"
 
 /* threads context */
 extern thread_ctx_t *threads_ctx;
@@ -263,8 +264,7 @@ void ins_padd_op(INS ins) {
         } else if (REG_is_ymm(reg_dst)) {
             R2R_CALL(r2r_binary_opy, reg_dst, reg_src);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         reg_dst = INS_OperandReg(ins, OP_0);
@@ -275,8 +275,7 @@ void ins_padd_op(INS ins) {
         } else if (REG_is_ymm(reg_dst)) {
             M2R_CALL(m2r_binary_opy, reg_dst);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -326,8 +325,7 @@ void ins_shufpd_op(INS ins) {
                            IARG_UINT32, imm,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         reg_dst = INS_OperandReg(ins, OP_0);
@@ -340,8 +338,7 @@ void ins_shufpd_op(INS ins) {
                            IARG_UINT32, imm,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -395,8 +392,7 @@ void ins_shufps_op(INS ins) {
                            IARG_UINT32, imm,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         reg_dst = INS_OperandReg(ins, OP_0);
@@ -409,8 +405,7 @@ void ins_shufps_op(INS ins) {
                            IARG_UINT32, imm,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }

@@ -3,6 +3,7 @@
 #include "ins_xfer_op.h"
 #include "ins_clear_op.h"
 #include "ins_helper.h"
+#include "log.h"
 
 /* threads context */
 extern thread_ctx_t *threads_ctx;
@@ -414,8 +415,7 @@ void ins_push_op(INS ins) {
       M2M_CALL(m2m_xfer_opw);
     }
   } else {
-    INT32 n = INS_OperandWidth(ins, OP_0) / 8;
-    M_CLEAR_N(n);
+    M_CLEAR_N(8); // push always writes 8 bytes
   }
 }
 
@@ -649,8 +649,7 @@ void ins_punpcklbw_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             R2R_CALL(r2r_punpcklbw_opx, reg_dst, reg_src);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_dst = INS_OperandReg(ins, OP_0);
@@ -659,8 +658,7 @@ void ins_punpcklbw_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             M2R_CALL(m2r_punpcklbw_opx, reg_dst);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -734,8 +732,7 @@ void ins_punpcklwd_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             R2R_CALL(r2r_punpcklwd_opx, reg_dst, reg_src);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_dst = INS_OperandReg(ins, OP_0);
@@ -744,8 +741,7 @@ void ins_punpcklwd_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             M2R_CALL(m2r_punpcklwd_opx, reg_dst);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -843,8 +839,7 @@ void ins_punpckldq_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             R2R_CALL(r2r_punpckldq_opx, reg_dst, reg_src);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_dst = INS_OperandReg(ins, OP_0);
@@ -853,8 +848,7 @@ void ins_punpckldq_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             M2R_CALL(m2r_punpckldq_opx, reg_dst);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -890,16 +884,14 @@ void ins_punpcklqdq_op(INS ins) {
         if (REG_is_xmm(reg_dst)) {
             R2R_CALL(r2r_punpcklqdq_opx, reg_dst, reg_src);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_dst = INS_OperandReg(ins, OP_0);
         if (REG_is_xmm(reg_dst)) {
             M2R_CALL(m2r_punpcklqdq_opx, reg_dst);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -953,8 +945,7 @@ void ins_punpckhbw_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             R2R_CALL(r2r_punpckhbw_opx, reg_dst, reg_src);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_dst = INS_OperandReg(ins, OP_0);
@@ -963,8 +954,7 @@ void ins_punpckhbw_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             M2R_CALL(m2r_punpckhbw_opx, reg_dst);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -1038,8 +1028,7 @@ void ins_punpckhwd_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             R2R_CALL(r2r_punpckhwd_opx, reg_dst, reg_src);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_dst = INS_OperandReg(ins, OP_0);
@@ -1048,8 +1037,7 @@ void ins_punpckhwd_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             M2R_CALL(m2r_punpckhwd_opx, reg_dst);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -1147,8 +1135,7 @@ void ins_punpckhdq_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             R2R_CALL(r2r_punpckhdq_opx, reg_dst, reg_src);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_dst = INS_OperandReg(ins, OP_0);
@@ -1157,8 +1144,7 @@ void ins_punpckhdq_op(INS ins) {
         } else if (REG_is_xmm(reg_dst)) {
             M2R_CALL(m2r_punpckhdq_opx, reg_dst);
         }  else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -1194,16 +1180,14 @@ void ins_punpckhqdq_op(INS ins) {
         if (REG_is_xmm(reg_dst)) {
             R2R_CALL(r2r_punpckhqdq_opx, reg_dst, reg_src);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_dst = INS_OperandReg(ins, OP_0);
         if (REG_is_xmm(reg_dst)) {
             M2R_CALL(m2r_punpckhqdq_opx, reg_dst);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -1245,8 +1229,7 @@ void ins_vpunpckhqdq_op(INS ins) {
                            IARG_UINT32, REG_INDX(reg_dst),
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         if (REG_is_xmm(reg_dst)) {
@@ -1257,8 +1240,7 @@ void ins_vpunpckhqdq_op(INS ins) {
                            IARG_MEMORYREAD_EA,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -1347,8 +1329,7 @@ void ins_pshufd_op(INS ins) {
                            IARG_BOOL, false,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         reg_dst = INS_OperandReg(ins, OP_0);
@@ -1374,8 +1355,7 @@ void ins_pshufd_op(INS ins) {
                            IARG_BOOL, false,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -1407,8 +1387,7 @@ void ins_vpshufd_op(INS ins) {
                            IARG_BOOL, false,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         reg_dst = INS_OperandReg(ins, OP_0);
@@ -1434,8 +1413,7 @@ void ins_vpshufd_op(INS ins) {
                            IARG_BOOL, false,
                            IARG_END);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -1470,8 +1448,7 @@ void ins_pslldq_op(INS ins) {
                        IARG_UINT32, imm,
                        IARG_END);
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -1548,8 +1525,7 @@ void ins_vpslldq_op(INS ins) {
                        IARG_UINT32, imm,
                        IARG_END);
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -1626,8 +1602,7 @@ void ins_vpsrldq_op(INS ins) {
                        IARG_UINT32, imm,
                        IARG_END);
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -1663,8 +1638,7 @@ void ins_psrldq_op(INS ins) {
                        IARG_UINT32, imm,
                        IARG_END);
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -1795,8 +1769,7 @@ void ins_psllx_op(INS ins, uint32_t chunkSize) {
                            IARG_END);
         }
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -1939,8 +1912,7 @@ void ins_vpsllx_op(INS ins, uint32_t chunkSize) {
                            IARG_END);
         }
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -2073,8 +2045,7 @@ void ins_psrlx_op(INS ins, uint32_t chunkSize) {
                            IARG_END);
         }
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -2209,8 +2180,7 @@ void ins_vpsrlx_op(INS ins, uint32_t chunkSize) {
                            IARG_END);
         }
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -2413,8 +2383,7 @@ void ins_shld_op(INS ins) {
         }
 
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -2618,8 +2587,7 @@ void ins_shrd_op(INS ins) {
         }
 
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -4164,8 +4132,7 @@ void ins_rorx_ins(INS ins) {
                            IARG_END);
         }
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
 
@@ -4208,8 +4175,7 @@ void ins_vpbroadcastb_op(INS ins) {
         } else if (REG_is_ymm(reg_dst)) {
             R_CALL(m2r_vpbroadcastb_opy, reg_dst);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         reg_dst = INS_OperandReg(ins, OP_0);
@@ -4219,8 +4185,7 @@ void ins_vpbroadcastb_op(INS ins) {
         } else if (REG_is_ymm(reg_dst)) {
             R2R_CALL(r2r_vpbroadcastb_opy, reg_dst, reg_src);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -4341,8 +4306,7 @@ void ins_combine_all_bytes(INS ins) {
         } else if (REG_is_ymm(reg_dst)) {
             M2R_CALL(m2r_combine_all_opy, reg_dst);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_src = INS_OperandReg(ins, OP_1);
@@ -4355,8 +4319,7 @@ void ins_combine_all_bytes(INS ins) {
         } else if (REG_is_ymm(reg_dst)) {
             R2R_CALL(r2r_combine_all_opy, reg_dst, reg_src);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }
@@ -4458,7 +4421,7 @@ void PIN_FAST_ANALYSIS_CALL r2r_combine_allinone_opy(THREADID tid, uint32_t dst,
 
 void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opw(THREADID tid, uint32_t dst, ADDRINT src) {
     tag_t src_tag[] = M16TAG(src);
-    tag_t dst_tag[] = M16TAG(dst);
+    tag_t dst_tag[] = R16TAG(dst);
 
     tag_t combined_src_tag = tag_traits<tag_t>::cleared_val;
     for (size_t i = 0; i < 2; ++i) {
@@ -4477,7 +4440,7 @@ void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opw(THREADID tid, uint32_t dst,
 
 void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opl(THREADID tid, uint32_t dst, ADDRINT src) {
     tag_t src_tag[] = M32TAG(src);
-    tag_t dst_tag[] = M32TAG(dst);
+    tag_t dst_tag[] = R32TAG(dst);
 
     tag_t combined_src_tag = tag_traits<tag_t>::cleared_val;
     for (size_t i = 0; i < 4; ++i) {
@@ -4496,7 +4459,7 @@ void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opl(THREADID tid, uint32_t dst,
 
 void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opq(THREADID tid, uint32_t dst, ADDRINT src) {
     tag_t src_tag[] = M64TAG(src);
-    tag_t dst_tag[] = M64TAG(dst);
+    tag_t dst_tag[] = R64TAG(dst);
 
     tag_t combined_src_tag = tag_traits<tag_t>::cleared_val;
     for (size_t i = 0; i < 8; ++i) {
@@ -4515,7 +4478,7 @@ void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opq(THREADID tid, uint32_t dst,
 
 void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opx(THREADID tid, uint32_t dst, ADDRINT src) {
     tag_t src_tag[] = M128TAG(src);
-    tag_t dst_tag[] = M128TAG(dst);
+    tag_t dst_tag[] = R128TAG(dst);
 
     tag_t combined_src_tag = tag_traits<tag_t>::cleared_val;
     for (size_t i = 0; i < 16; ++i) {
@@ -4534,7 +4497,7 @@ void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opx(THREADID tid, uint32_t dst,
 
 void PIN_FAST_ANALYSIS_CALL m2r_combine_allinone_opy(THREADID tid, uint32_t dst, ADDRINT src) {
     tag_t src_tag[] = M256TAG(src);
-    tag_t dst_tag[] = M256TAG(dst);
+    tag_t dst_tag[] = R256TAG(dst);
 
     tag_t combined_src_tag = tag_traits<tag_t>::cleared_val;
     for (size_t i = 0; i < 32; ++i) {
@@ -4565,8 +4528,7 @@ void ins_combine_all_bytes_in_dst(INS ins) {
         } else if (REG_is_ymm(reg_dst)) {
             M2R_CALL(m2r_combine_allinone_opy, reg_dst);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     } else {
         REG reg_src = INS_OperandReg(ins, OP_1);
@@ -4581,8 +4543,7 @@ void ins_combine_all_bytes_in_dst(INS ins) {
         } else if (REG_is_ymm(reg_dst)) {
             R2R_CALL(r2r_combine_allinone_opy, reg_dst, reg_src);
         } else {
-            xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-            LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+            LOG_UNHANDLED_OPCODE(ins);
         }
     }
 }

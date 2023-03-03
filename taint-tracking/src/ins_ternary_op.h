@@ -18,4 +18,8 @@ void ins_vinserti_op(INS ins);
 
 void ins_sarx_op(INS ins);
 
+void ins_combine_all_bytes_in_dst_ternary(INS ins);
+
+void ins_vpinsrq_op(INS ins);
+
 #endif

@@ -1,5 +1,6 @@
 #include "ins_unitary_op.h"
 #include "ins_helper.h"
+#include "log.h"
 
 /* threads context */
 extern thread_ctx_t *threads_ctx;
@@ -203,7 +204,6 @@ void ins_bswap_op(INS ins) {
     } else if (REG_is_gr32(reg)) {
         R_CALL(_bswap_opl, reg);
     } else {
-        xed_iclass_enum_t ins_indx = (xed_iclass_enum_t)INS_Opcode(ins);
-        LOG(std::string(__func__) + ": unhandled opcode (opcode=" + decstr(ins_indx) + ")\n");
+        LOG_UNHANDLED_OPCODE(ins);
     }
 }
