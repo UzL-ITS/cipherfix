@@ -6,3 +6,6 @@
 *.log
 **/.vscode/
 **/.idea/
+/taint-tracking/.vs/
+/structure-analysis/.vs/
+/structure-analysis/x64/
