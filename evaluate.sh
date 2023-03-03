@@ -21,7 +21,7 @@ mainBinary=$4
 
 echo -e "\e[1;94mRunning memory write tracer\e[0m"
 pushd memwrite-tracer
-bash run.sh $instrDir $mainBinary.instr $interesting ${@:5}
+bash run.sh $instrDir $interesting $mainBinary.instr ${@:5}
 popd
 
 
