@@ -181,10 +181,6 @@ public class StackFrameInitializer
                 }
             }
 
-            // Ensure that there is a toy register for small writes
-            if(toySmall == null)
-                toySmall = registerAllocator.AllocateToyRegister(preferredWidth: 8);
-
             // Decide which chunk type is more prevalent
             List<(int start, int length)> chunksSecondary;
             List<int> offsetsSecondary;
@@ -254,6 +250,15 @@ public class StackFrameInitializer
 
                 offset += 0x10;
                 Debug.Assert(offset == 8);
+            }
+
+            // Ensure that there is a toy register for small writes
+            if(toySmall == null)
+            {
+                toySmall = registerAllocator.AllocateToyRegister(preferredWidth: 8);
+
+                if(chunksSecondary == maskedChunks)
+                    _assembler.vmovq(toySmall.Reg64, toyMask.RegXMM);
             }
 
             // Write secondary chunks
