@@ -649,7 +649,7 @@ handle_malloc:
 
 .continue_malloc:	
 	; Read allocation tracker and overwrite it with 0b10
-	; This way, we ensure that subsequent calls to handle_malloc() do not needlessly generate a
+	; This way, we ensure that nested calls to handle_malloc() do not needlessly generate a
 	; random mask (e.g., OpenSSL's CRYPTO_malloc may internally call libc's malloc)
 	mov r13, MANAGEMENT_OBJECT_ADDRESS+MO_ALLOC_TRACKER_OFFSET
 	mov r14, qword [r13]
@@ -669,18 +669,18 @@ handle_malloc:
 	mov qword [r13-8+SECRECY_BUFFER_OFFSET], 0
 	mov qword [r13+r15+SECRECY_BUFFER_OFFSET], 0
 	
-	; Initialize mask and secrecy buffers
+	; Initialize secrecy buffer
 	; If the alloc tracker has value 2^k-1, we are in a call stack allocating a secret block and
-	; need a random mask. Else, we set the entire secrecy buffer to zero.
+	; need a mask, so the secrecy buffer must be one. Else, we set the entire secrecy buffer to zero.
 	
 	test r14, r14
-	je .init_zero_mask   ; tracker == 0 ?
+	je .init_secrecy_zero   ; tracker == 0 ?
 	
 	lea rax, [r14+1]
 	and rax, r14
-	jne .init_zero_mask  ; (tracker & (tracker + 1)) != 0 ?
+	jne .init_secrecy_zero  ; (tracker & (tracker + 1)) != 0 ?
 	
-.init_random_mask:
+.init_secrecy_one:
 	lea rdi, [r13+SECRECY_BUFFER_OFFSET]
 	mov al, -1
 	mov rcx, r15
@@ -688,11 +688,101 @@ handle_malloc:
 	
 	jmp .mask_init_done
 	
-.init_zero_mask:
+.init_secrecy_zero:
 	lea rdi, [r13+SECRECY_BUFFER_OFFSET]
 	xor eax, eax
 	mov rcx, r15
 	rep stosb
+
+.mask_init_done:
+	
+	; Return address of allocated memory
+	mov rax, r13
+	
+.end:
+	; Restore allocation tracker
+	mov r13, MANAGEMENT_OBJECT_ADDRESS+MO_ALLOC_TRACKER_OFFSET
+	mov qword [r13], r14
+
+	pop r13
+	pop r14
+	pop r15
+	ret
+
+; Instrumentation for calloc() calls which allocate secret memory.
+; Initializes the corresponding buffers such that the effective content is zero.
+; Parameters:
+; - rdi: Number of allocated objects.
+; - rsi: Size of each object.
+; - rax: Address of calloc() function. We don't use the other argument registers as those
+;        may contain additional arguments for that particular allocation function.
+; Returns the allocated address in rax.
+[global handle_calloc]
+handle_calloc:
+	
+	push r15 ; Allocation size
+	push r14 ; Allocation tracker
+	push r13 ; Returned address
+	; Stack is now 16-byte aligned
+	
+	; Compute and store allocation size
+	mov r15, rdi
+	imul r15, rsi
+
+	; Read allocation tracker and overwrite it with 0b10
+	; This way, we ensure that nested calls to handle_malloc() do not needlessly generate a
+	; random mask
+	mov r13, MANAGEMENT_OBJECT_ADDRESS+MO_ALLOC_TRACKER_OFFSET
+	mov r14, qword [r13]
+	mov qword [r13], 2 ; 0b10
+
+	; Call calloc()
+	call rax
+	
+	; Error check
+	test rax, rax
+	je .end
+	
+	; Remember returned address
+	mov r13, rax
+	
+	; Ensure that secrecy buffer behind the boundaries is zero (needed for rewriting of single-byte accesses)
+	mov qword [r13-8+SECRECY_BUFFER_OFFSET], 0
+	mov qword [r13+r15+SECRECY_BUFFER_OFFSET], 0
+	
+	; Initialize secrecy buffer
+	; If the alloc tracker has value 2^k-1, we are in a call stack allocating a secret block and
+	; need a mask, so the secrecy buffer must be one. Else, we set the entire secrecy buffer to zero.
+	
+	test r14, r14
+	je .init_secrecy_zero   ; tracker == 0 ?
+	
+	lea rax, [r14+1]
+	and rax, r14
+	jne .init_secrecy_zero  ; (tracker & (tracker + 1)) != 0 ?
+	
+.init_secrecy_one:
+	lea rdi, [r13+SECRECY_BUFFER_OFFSET]
+	mov al, -1
+	mov rcx, r15
+	rep stosb
+	
+	; Also clear mask buffer, such that (mask & secrecy) ^ data == 0
+	; data has already been cleared by the calloc() implementation
+	lea rdi, [r13+MASK_BUFFER_OFFSET]
+	mov al, 0
+	mov rcx, r15
+	rep stosb
+	
+	jmp .mask_init_done
+	
+.init_secrecy_zero:
+	lea rdi, [r13+SECRECY_BUFFER_OFFSET]
+	xor eax, eax
+	mov rcx, r15
+	rep stosb
+	
+	; No need to clear the mask buffer here, as secrecy masks it
 
 .mask_init_done:
 	

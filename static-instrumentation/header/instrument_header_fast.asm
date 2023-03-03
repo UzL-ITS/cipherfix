@@ -707,6 +707,89 @@ handle_malloc:
 	pop r15
 	ret
 
+; Instrumentation for calloc() calls which allocate secret memory.
+; Initializes the corresponding mask buffer such that the effective content is zero.
+; Parameters:
+; - rdi: Number of allocated objects.
+; - rsi: Size of each object.
+; - rax: Address of calloc() function. We don't use the other argument registers as those
+;        may contain additional arguments for that particular allocation function.
+; Returns the allocated address in rax.
+[global handle_calloc]
+handle_calloc:
+	
+	push r15 ; Allocation size
+	push r14 ; Allocation tracker
+	push r13 ; Returned address
+	; Stack is now 16-byte aligned
+	
+	; Compute and store allocation size
+	mov r15, rdi
+	imul r15, rsi
+	
+	; Read allocation tracker and overwrite it with 0b10
+	; This way, we ensure that subsequent calls to handle_malloc() do not needlessly generate a
+	; random mask (e.g., OpenSSL's CRYPTO_malloc may internally call libc's malloc)
+	mov r13, MANAGEMENT_OBJECT_ADDRESS+MO_ALLOC_TRACKER_OFFSET
+	mov r14, qword [r13]
+	mov qword [r13], 2 ; 0b10
+
+	; Call calloc()
+	call rax
+	
+	; Error check
+	test rax, rax
+	je .end
+	
+	; Remember returned address
+	mov r13, rax
+	
+	; Initialize mask buffer
+	; If the alloc tracker has value 2^k-1, we are in a call stack allocating a secret block and
+	; need a random mask. Else, we set the entire mask buffer to zero.
+	lea rdi, [rax+MASK_BUFFER_OFFSET]
+	
+	test r14, r14
+	je .init_zero_mask   ; tracker == 0 ?
+	
+	lea rax, [r14+1]
+	and rax, r14
+	jne .init_zero_mask  ; (tracker & (tracker + 1)) != 0 ?
+	
+.init_random_mask:
+	mov rsi, r15
+	call get_random_bytes
+	
+	; Copy mask into data buffer, such that mask ^ data == 0
+	lea rsi, [r13+MASK_BUFFER_OFFSET]
+	mov rdi, r13
+	mov rcx, r15
+	rep movsb
+	
+	jmp .mask_init_done
+	
+.init_zero_mask:
+	xor eax, eax
+	mov rcx, r15
+	rep stosb
+	
+	; data is already zero
+
+.mask_init_done:
+	
+	; Return address of allocated memory
+	mov rax, r13
+	
+.end:
+	; Restore allocation tracker
+	mov r13, MANAGEMENT_OBJECT_ADDRESS+MO_ALLOC_TRACKER_OFFSET
+	mov qword [r13], r14
+
+	pop r13
+	pop r14
+	pop r15
+	ret
+
 ; Instrumentation for realloc() calls which reallocate secret memory.
 ; Copies the mask buffer to the new memory location, and extends it if necessary.
 ; Parameters:
