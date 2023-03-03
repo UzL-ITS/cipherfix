@@ -1,12 +1,17 @@
 #!/bin/bash
 
 git clone --recurse-submodules https://github.com/UzL-ITS/cipherfix.git
+
 cd cipherfix
 ./build-all.sh
-cd examples/tweetnacl-eddsa
+
+cd examples/libsodium
 ./build.sh
-cd ../openssl-ecdsa
+cd ../examples/mbedtls
 ./build.sh
-cd ../..
+cd ../examples/openssl
+./build.sh
+cd ../examples/wolfssl
+./build.sh
 
 echo "Setup complete"
