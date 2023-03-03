@@ -106,7 +106,7 @@ ADDRINT pltTargetAddress = 0;
 std::map<ADDRINT, ADDRINT> blockIdToRemainingFrameLengthMap;
 std::map<ADDRINT, FunctionData*> _functionStates;
 
-std::tr1::unordered_set<ADDRINT> _forcedPublicFunctions;
+std::unordered_set<ADDRINT> _forcedPublicFunctions;
 
 UINT32 ldImgId = 0;
 UINT32 libcImgId = 0;
@@ -251,7 +251,7 @@ std::vector<PltSection*> _pltSections;
 // We assume that the PLT stub has a size of 16 bytes.
 #define PLT_STUB_SIZE 0x10
 
-VOID SetInsTypeAtAddr(ADDRINT addr, UINT32 type) 
+VOID SetInsTypeAtAddr(ADDRINT addr, UINT32 type)
 {
 	mitigationInsToAccessTypeMap[addr] = type;
 }
@@ -317,21 +317,21 @@ static inline int thread_ctx_init();
  *
  * returns: 0 on success, 1 on error
  */
-int libdft_init(const char* filename, const char* infileName, int readSyscalls, int trackSyscalls) 
+int libdft_init(const char* filename, const char* infileName, int readSyscalls, int trackSyscalls)
 {
 	// Open the trace file
 	TraceFile.open(filename);
 
 	// Open the ifstream
 	infile.open(infileName);
-	
+
 	if (enableMemoryAccessTrace)
 	{
 		// Open memory trace output file
 		_memoryAccessFile.open((std::string(filename) + ".memtrace").c_str(), std::ios::binary | std::ios::trunc);
 	}
 
-	if (enableTrackTaintedRegs) 
+	if (enableTrackTaintedRegs)
 	{
 		CERR_INFO << "Registers are checked for taint status." << std::endl;
 
@@ -371,14 +371,14 @@ int libdft_init(const char* filename, const char* infileName, int readSyscalls, 
 	}
 
 	// Check if read system calls shall be used as taint sources
-	if (readSyscalls != 0) 
+	if (readSyscalls != 0)
 	{
 		enableReadSyscallSource = true;
 		CERR_INFO << "Read system calls are set as taint sources." << std::endl;
 	}
 
 	// Check if system calls shall be tracked for mitigation
-	if (trackSyscalls != 0) 
+	if (trackSyscalls != 0)
 	{
 		enableTrackSyscalls = true;
 		CERR_INFO << "System calls are tracked for mitigation." << std::endl;
@@ -389,20 +389,20 @@ int libdft_init(const char* filename, const char* infileName, int readSyscalls, 
 	char line[2048];
 	fp = fopen("/proc/self/maps", "r");
 
-	if (fp == nullptr) 
+	if (fp == nullptr)
 		perror("Error opening file");
 
 	const char* firstSplit = "-";
 	UINT64 stackMin, stackMax;
 	std::string::size_type addressLength;
 	std::string str, stackMinStr, stackMaxStr;
-	while (fgets(line, 2048, fp) != nullptr) 
+	while (fgets(line, 2048, fp) != nullptr)
 	{
-		if (strstr(line, "[stack]") != nullptr) 
+		if (strstr(line, "[stack]") != nullptr)
 		{
 			str = line;
 			addressLength = str.find(firstSplit);
-			if (addressLength != std::string::npos) 
+			if (addressLength != std::string::npos)
 			{
 				stackMinStr = str.substr(0, addressLength);
 				stackMin = getUint64FromStr(stackMinStr);
@@ -413,7 +413,7 @@ int libdft_init(const char* filename, const char* infileName, int readSyscalls, 
 
 				// Get full stack size
 				struct rlimit stackLimit;
-				if (getrlimit(RLIMIT_STACK, &stackLimit) != 0) 
+				if (getrlimit(RLIMIT_STACK, &stackLimit) != 0)
 				{
 					char errBuffer[128];
 					strerror_r(errno, errBuffer, sizeof(errBuffer));
@@ -441,13 +441,13 @@ int libdft_init(const char* filename, const char* infileName, int readSyscalls, 
 	int interesting;
 	std::string sizeStr, imageName;
 
-	for (int i = 0; i < imageCount; ++i) 
+	for (int i = 0; i < imageCount; ++i)
 	{
 		infile >> imageId >> sizeStr >> interesting >> imageName;
 
 		images.push_back(new ImageData(
 			imageId, getUint64FromStr(sizeStr), imageName, 0, 0
-			));
+		));
 	}
 
 	// Read input: list of static variables (= "image memory blocks"), generated with static variable detection Pintool
@@ -455,13 +455,13 @@ int libdft_init(const char* filename, const char* infileName, int readSyscalls, 
 	std::string imageOffsetStr;
 	UINT64 imageBlockSize;
 
-	for (int i = 0; i < memoryBlockCount; ++i) 
+	for (int i = 0; i < memoryBlockCount; ++i)
 	{
 		infile >> imageId >> imageOffsetStr >> imageBlockSize;
 		std::set<UINT32> emptySet;
 		inputMemoryBlockData.push_back(new MemoryBlockData(
 			imageId, getUint64FromStr(imageOffsetStr), blockId++, imageBlockSize, 0, 0, MemoryBlockType::IMAGE, 0, false, true, emptySet
-			));
+		));
 	}
 
 	// Use the input for the whole analysis
@@ -487,7 +487,7 @@ int libdft_init(const char* filename, const char* infileName, int readSyscalls, 
 	* and invoke registered callbacks (if any)
 	*/
 	// Add a read hook to set the input buffer as taint source
-	if (enableReadSyscallSource) 
+	if (enableReadSyscallSource)
 		(void)syscall_set_post(&syscall_desc[__NR_read], post_read_hook);
 
 	// register sysenter_save() to be called before every syscall
@@ -508,7 +508,7 @@ int libdft_init(const char* filename, const char* infileName, int readSyscalls, 
 	// Register Fini to be called when the application exits
 	PIN_AddFiniFunction(Fini, nullptr);
 
-	if (enableTrackTaintedRegs) 
+	if (enableTrackTaintedRegs)
 		PIN_AddFiniFunction(TaintStatusRegisters, nullptr);
 
 	// success
@@ -522,7 +522,7 @@ int libdft_init(const char* filename, const char* infileName, int readSyscalls, 
  *
  * NOTE: it also performs the appropriate cleanup
  */
-void libdft_die() 
+void libdft_die()
 {
 	free(threads_ctx);
 	PIN_Detach();
@@ -568,7 +568,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 	}
 
 	// Determine image bounds
-	for (UINT32 i = 0; i < IMG_NumRegions(img); ++i) 
+	for (UINT32 i = 0; i < IMG_NumRegions(img); ++i)
 	{
 		if (IMG_RegionHighAddress(img, i) > imageEnd)
 		{
@@ -578,9 +578,9 @@ VOID InstrumentImage(IMG img, VOID* v)
 	CERR_INFO << "   Address: " << std::hex << imageStart << " ... " << imageEnd << std::endl;
 
 	// Remember image for trace instrumentation
-	for (const auto& img : images) 
+	for (const auto& img : images)
 	{
-		if (img->imageId == id) 
+		if (img->imageId == id)
 		{
 			img->imageStartAddress = imageStart;
 			img->imageEndAddress = imageEnd;
@@ -588,9 +588,9 @@ VOID InstrumentImage(IMG img, VOID* v)
 	}
 
 	// Add block address information for the current image
-	for (const auto& imgBlock : memoryBlocks) 
+	for (const auto& imgBlock : memoryBlocks)
 	{
-		if (imgBlock->imageId == id) 
+		if (imgBlock->imageId == id)
 		{
 			UINT64 blockStart = imageStart + imgBlock->offset;
 			imgBlock->startAddress = blockStart;
@@ -628,7 +628,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 
 	// Find the main to start taint tracking there
 	RTN mainRtn = RTN_FindByName(img, "main");
-	if (RTN_Valid(mainRtn)) 
+	if (RTN_Valid(mainRtn))
 	{
 		RTN_Open(mainRtn);
 
@@ -643,7 +643,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 
 	// Classify private data
 	RTN classifyRtn = RTN_FindByName(img, "classify");
-	if (RTN_Valid(classifyRtn)) 
+	if (RTN_Valid(classifyRtn))
 	{
 		RTN_Open(classifyRtn);
 
@@ -659,7 +659,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 
 	// Declassify function to untaint data that gets printed / written to a public buffer
 	RTN declassifyRtn = RTN_FindByName(img, "declassify");
-	if (RTN_Valid(declassifyRtn)) 
+	if (RTN_Valid(declassifyRtn))
 	{
 		RTN_Open(declassifyRtn);
 
@@ -675,7 +675,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 
 	// Function to untaint all data
 	RTN dropTaintRtn = RTN_FindByName(img, "drop_taint");
-	if (RTN_Valid(dropTaintRtn)) 
+	if (RTN_Valid(dropTaintRtn))
 	{
 		RTN_Open(dropTaintRtn);
 
@@ -689,11 +689,11 @@ VOID InstrumentImage(IMG img, VOID* v)
 
 	// Find allocation and free functions to log allocation sizes and addresses
 	// Only instrument allocation methods from libc
-	if (imageName.find("libc.so") != std::string::npos) 
+	if (imageName.find("libc.so") != std::string::npos)
 	{
 		// Instrument malloc
 		RTN mallocRtn = RTN_FindByName(img, "malloc");
-		if (RTN_Valid(mallocRtn)) 
+		if (RTN_Valid(mallocRtn))
 		{
 			RTN_Open(mallocRtn);
 
@@ -722,7 +722,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 
 		// Instrument calloc
 		RTN callocRtn = RTN_FindByName(img, "calloc");
-		if (RTN_Valid(callocRtn)) 
+		if (RTN_Valid(callocRtn))
 		{
 			RTN_Open(callocRtn);
 
@@ -752,7 +752,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 
 		// Instrument realloc
 		RTN reallocRtn = RTN_FindByName(img, "realloc");
-		if (RTN_Valid(reallocRtn)) 
+		if (RTN_Valid(reallocRtn))
 		{
 			RTN_Open(reallocRtn);
 
@@ -782,7 +782,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 
 		// Instrument free
 		RTN freeRtn = RTN_FindByName(img, "free");
-		if (RTN_Valid(freeRtn)) 
+		if (RTN_Valid(freeRtn))
 		{
 			RTN_Open(freeRtn);
 
@@ -803,15 +803,15 @@ VOID InstrumentImage(IMG img, VOID* v)
 	ForceStackFramePublic(img, "sha512_block_data_order_avx2");
 }
 
-VOID AddReadSecret(ADDRINT ret, ADDRINT buf, UINT32 read_off) 
+VOID AddReadSecret(ADDRINT ret, ADDRINT buf, UINT32 read_off)
 {
 	// HINT: for specific algorithms check length: e.g. only 32 byte keys for ed25519
 	// TODO: adjust for algorithm to be analyzed 
 	/* set the tag markings */
-	if (ret == 32) 
+	if (ret == 32)
 	{
 		CERR_DEBUG << "reached read file 32" << std::endl;
-		for (unsigned int i = 0; i < ret; i++) 
+		for (unsigned int i = 0; i < ret; i++)
 		{
 			sources.insert(buf + i);
 			// Taint the buffer using the offset from buf start for each byte
@@ -821,7 +821,7 @@ VOID AddReadSecret(ADDRINT ret, ADDRINT buf, UINT32 read_off)
 	}
 }
 
-VOID Declassify(ADDRINT secret, ADDRINT size) 
+VOID Declassify(ADDRINT secret, ADDRINT size)
 {
 	CERR_INFO << "[TAINT] Declassifying secret at " << std::hex << secret << ", 0x" << size << " bytes" << std::endl;
 
@@ -829,9 +829,9 @@ VOID Declassify(ADDRINT secret, ADDRINT size)
 	tagmap_clrn(secret, size);
 
 	// Unset the 'secret' status of the block that was malloc'd for printing the buffer
-	for (auto it = memoryBlocks.rbegin(); it != memoryBlocks.rend(); ++it) 
+	for (auto it = memoryBlocks.rbegin(); it != memoryBlocks.rend(); ++it)
 	{
-		if (((*it)->startAddress <= secret && secret < (*it)->endAddress) && (*it)->active) 
+		if (((*it)->startAddress <= secret && secret < (*it)->endAddress) && (*it)->active)
 		{
 			CERR_INFO << "[TAINT]   Marking memory block #" << std::dec << (*it)->blockId << " as non-secret" << std::endl;
 			(*it)->secret = false;
@@ -839,7 +839,7 @@ VOID Declassify(ADDRINT secret, ADDRINT size)
 	}
 }
 
-VOID DropTaint() 
+VOID DropTaint()
 {
 	CERR_INFO << "[TAINT] Dropping all taint tags" << std::endl;
 
@@ -847,11 +847,11 @@ VOID DropTaint()
 	tagmap_clear();
 }
 
-VOID Classify(ADDRINT secret, ADDRINT size) 
+VOID Classify(ADDRINT secret, ADDRINT size)
 {
 	CERR_INFO << "[TAINT] Classifying secret at " << std::hex << secret << ", 0x" << size << " bytes" << std::endl;
 
-	for (size_t i = 0; i < size; ++i) 
+	for (size_t i = 0; i < size; ++i)
 	{
 		sources.insert(secret + i);
 		tag_t t = tag_alloc<tag_t>((UINT32)1);
@@ -859,7 +859,7 @@ VOID Classify(ADDRINT secret, ADDRINT size)
 	}
 }
 
-VOID SysBefore_CheckArgsEncrypted(ADDRINT ip, ADDRINT num, ADDRINT argCount, ADDRINT arg0, ADDRINT arg1, ADDRINT arg2, ADDRINT arg3, ADDRINT arg4, ADDRINT arg5) 
+VOID SysBefore_CheckArgsEncrypted(ADDRINT ip, ADDRINT num, ADDRINT argCount, ADDRINT arg0, ADDRINT arg1, ADDRINT arg2, ADDRINT arg3, ADDRINT arg4, ADDRINT arg5)
 {
 
 	std::vector<ADDRINT> functionArgs;
@@ -878,13 +878,13 @@ VOID SysBefore_CheckArgsEncrypted(ADDRINT ip, ADDRINT num, ADDRINT argCount, ADD
 	functionArgs.push_back(arg5);
 
 	// Set all args that are "real" args of the syscall
-	for (ADDRINT i = 0; i < 6; i++) 
+	for (ADDRINT i = 0; i < 6; i++)
 	{
-		if (i < argCount) 
+		if (i < argCount)
 		{
 			syscallArgs.push_back(functionArgs.at(i));
 		}
-		else 
+		else
 		{
 			syscallArgs.push_back({ 0 });
 		}
@@ -895,22 +895,22 @@ VOID SysBefore_CheckArgsEncrypted(ADDRINT ip, ADDRINT num, ADDRINT argCount, ADD
 	syscallData.push_back(new SyscallData(
 		ip, img->imageId, img->GetInsOffset(ip), num, argCount, syscallArgs.at(0), syscallArgs.at(1),
 		syscallArgs.at(2), syscallArgs.at(3), syscallArgs.at(4), syscallArgs.at(5)
-		));
+	));
 }
 
 VOID ClearAllocationRegisters(THREADID tid, BOOL isPureMalloc)
 {
 	// Clear the taint status of registers that contain the pointer to a heap allocation and / or the allocation size
-	if (isPureMalloc) 
+	if (isPureMalloc)
 	{
-		for (size_t i = 0; i < 8; ++i) 
+		for (size_t i = 0; i < 8; ++i)
 		{
 			RTAG[DFT_REG_RDI][i] = tag_traits<tag_t>::cleared_val;
 		}
 	}
-	else 
+	else
 	{
-		for (size_t i = 0; i < 8; ++i) 
+		for (size_t i = 0; i < 8; ++i)
 		{
 			RTAG[DFT_REG_RDI][i] = tag_traits<tag_t>::cleared_val;
 			RTAG[DFT_REG_RSI][i] = tag_traits<tag_t>::cleared_val;
@@ -921,9 +921,9 @@ VOID ClearAllocationRegisters(THREADID tid, BOOL isPureMalloc)
 VOID InsertHeapAllocAddressReturnEntry(ADDRINT allocationAddress)
 {
 	// Find the right memory block entry and add the new information
-	for (auto it = activeNonStackMemoryBlocks.rbegin(); it != activeNonStackMemoryBlocks.rend(); ++it) 
+	for (auto it = activeNonStackMemoryBlocks.rbegin(); it != activeNonStackMemoryBlocks.rend(); ++it)
 	{
-		if ((*it)->blockId == (blockId - 1)) 
+		if ((*it)->blockId == (blockId - 1))
 		{
 			(*it)->startAddress = allocationAddress;
 			(*it)->endAddress = allocationAddress + (*it)->blockSize;
@@ -938,7 +938,7 @@ VOID InsertHeapAllocSizeParameterEntry(UINT32 allocationSize)
 	std::set<UINT32> emptySet;
 	MemoryBlockData* memoryBlock = new MemoryBlockData(
 		0, 0, blockId++, allocationSize, 0, 0, MemoryBlockType::HEAP, 0, false, true, emptySet
-		);
+	);
 
 	memoryBlocks.push_back(memoryBlock);
 	activeNonStackMemoryBlocks.push_back(memoryBlock);
@@ -950,7 +950,7 @@ VOID InsertHeapCallocSizeParameterEntry(ADDRINT count, ADDRINT size)
 	std::set<UINT32> emptySet;
 	MemoryBlockData* memoryBlock = new MemoryBlockData(
 		0, 0, blockId++, count * size, 0, 0, MemoryBlockType::HEAP, 0, false, true, emptySet
-		);
+	);
 
 	memoryBlocks.push_back(memoryBlock);
 	activeNonStackMemoryBlocks.push_back(memoryBlock);
@@ -968,7 +968,7 @@ VOID InsertHeapReallocSizeAndAddressParameterEntry(ADDRINT addr, UINT32 allocati
 			activeNonStackMemoryBlocks.erase(it);
 
 			// If the block is found, we store and then clear its taint status
-			for (ADDRINT i = addr; i < addr + memoryBlock->blockSize; ++i) 
+			for (ADDRINT i = addr; i < addr + memoryBlock->blockSize; ++i)
 			{
 				reallocTaintInfo.push_back(tagmap_getb(i));
 				tagmap_clrb(i);
@@ -983,7 +983,7 @@ VOID InsertHeapReallocSizeAndAddressParameterEntry(ADDRINT addr, UINT32 allocati
 	std::set<UINT32> emptySet;
 	MemoryBlockData* memoryBlock = new MemoryBlockData(
 		0, 0, blockId++, allocationSize, addr, addr + allocationSize, MemoryBlockType::HEAP, 0, false, true, emptySet
-		);
+	);
 
 	memoryBlocks.push_back(memoryBlock);
 	activeNonStackMemoryBlocks.push_back(memoryBlock);
@@ -1038,7 +1038,7 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 		{
 			auto currentBlock = *it;
 
-			if (currentBlock->endAddress <= memoryAddress && memoryAddress < currentBlock->startAddress) 
+			if (currentBlock->endAddress <= memoryAddress && memoryAddress < currentBlock->startAddress)
 			{
 				memBlk = currentBlock;
 
@@ -1162,7 +1162,7 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 			memBlk,
 			AccessType::NONE,
 			memBlk == nullptr && (hasSegmentPrefix || AddressInPlt(instructionAddress))
-			);
+		);
 		instructions.insert(instructionData);
 	}
 	else
@@ -1180,6 +1180,13 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 VOID UpdateBlockTaintStatus(UINT32 callBackIndex, THREADID tid)
 {
 	// Check all bytes of the memory access for taint and update our state accordingly
+	// 
+	// NOTE: We do fine-grained access tracking, i.e., we check each byte of an access for taint, to reduce the final overhead.
+	//       However, this has a small risk of yielding misleading results if a write access is tainted incorrectly.
+	//		 Example (now fixed):
+	//         `push 1` has operand size 1, but writes 8 bytes. If there is left-over taint in one of the high bytes, but a read
+	//         access only accesses the low ones, the write is detected as "sometimes private" (because there is taint in one of
+	//         the 8 bytes), but the read is "always public" (because the low bytes aren't tainted), leading to potential crashes.
 
 	// Check associated memory block
 	auto lastInstruction = lastInstructions[callBackIndex];
@@ -1197,7 +1204,7 @@ VOID UpdateBlockTaintStatus(UINT32 callBackIndex, THREADID tid)
 				CERR_ERROR << "Could not resolve tainted access at ins "
 					<< lastInstruction->imageId << " " << std::hex << lastInstruction->offset
 					<< " to address " << lastInstruction->memoryAddress << std::endl;
-				
+
 				break;
 			}
 		}
@@ -1231,7 +1238,7 @@ VOID UpdateBlockTaintStatus(UINT32 callBackIndex, THREADID tid)
 				// Keep track of instructions that directly touch a secret offset
 				lastInstruction->accessType |= AccessType::SECRET;
 			}
-			else 
+			else
 			{
 				// Not a secret offset, so we add a public access to our frame tracking state for the instruction
 				lastInstruction->accessType |= AccessType::PUBLIC;
@@ -1252,7 +1259,7 @@ VOID UpdateBlockTaintStatus(UINT32 callBackIndex, THREADID tid)
 	}
 }
 
-VOID AdjustCurrentStackFrame(CONTEXT* context, ADDRINT subSize, ADDRINT ip, const ImageData* img) 
+VOID AdjustCurrentStackFrame(CONTEXT* context, ADDRINT subSize, ADDRINT ip, const ImageData* img)
 {
 	// RSP before executing this instruction
 	UINT64 rspVal = PIN_GetContextReg(context, REG_RSP);
@@ -1272,7 +1279,7 @@ VOID AdjustCurrentStackFrame(CONTEXT* context, ADDRINT subSize, ADDRINT ip, cons
 
 			auto funStart = currentFrame->functionStartAddress;
 			auto functionState = _functionStates[funStart];
-			if (currentFrame->blockSize > functionState->maximumFrameSize) 
+			if (currentFrame->blockSize > functionState->maximumFrameSize)
 			{
 				functionState->maximumFrameSize = currentFrame->blockSize;
 			}
@@ -1284,7 +1291,7 @@ VOID AdjustCurrentStackFrame(CONTEXT* context, ADDRINT subSize, ADDRINT ip, cons
 	}
 }
 
-VOID AdjustCurrentStackFrameRedZone(ADDRINT memoryAddress, ADDRINT ip, const ImageData* img) 
+VOID AdjustCurrentStackFrameRedZone(ADDRINT memoryAddress, ADDRINT ip, const ImageData* img)
 {
 	// Find the current stack frame
 	if (!stackFrames.empty())
@@ -1297,7 +1304,7 @@ VOID AdjustCurrentStackFrameRedZone(ADDRINT memoryAddress, ADDRINT ip, const Ima
 
 			auto funStart = currentFrame->functionStartAddress;
 			auto functionState = _functionStates[funStart];
-			if (currentFrame->blockSize > functionState->maximumFrameSize) 
+			if (currentFrame->blockSize > functionState->maximumFrameSize)
 			{
 				functionState->maximumFrameSize = currentFrame->blockSize;
 			}
@@ -1309,7 +1316,7 @@ VOID AdjustCurrentStackFrameRedZone(ADDRINT memoryAddress, ADDRINT ip, const Ima
 	}
 }
 
-VOID TrackStackFramesAddPop(ADDRINT addSize, ADDRINT ip, const ImageData* img) 
+VOID TrackStackFramesAddPop(ADDRINT addSize, ADDRINT ip, const ImageData* img)
 {
 	if (!stackFrames.empty())
 	{
@@ -1352,7 +1359,7 @@ VOID AllocateNewStackFrame(ADDRINT functionAddress, UINT32 functionImageId, ADDR
 	// The stack frame begins above the return address (RSP points to the return address)
 	auto stackFrameMemoryBlock = new MemoryBlockData(
 		functionImageId, functionOffset, newStackFrameId, 0, rsp, rsp, MemoryBlockType::STACK, functionAddress, false, true, std::set<UINT32>()
-		);
+	);
 
 	memoryBlocks.push_back(stackFrameMemoryBlock);
 	stackFrames.push_back(stackFrameMemoryBlock);
@@ -1394,7 +1401,7 @@ VOID HandleGenericCall(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip
 	callstack.push_back(new CallstackEntry(
 		img->imageId, img->GetInsOffset(ip), targetImgId,
 		targetOffset, ip, branchTargetAddress, 0
-		));
+	));
 
 	// Do we call into a .plt entry?
 	if (AddressInPlt(branchTargetAddress))
@@ -1543,13 +1550,44 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 			return;
 		}
 
-		if (branchTargetAddress == pltToRealFctStartMap[pltTargetAddress]) {
+		// We exit lazy linking tracking as soon as we arrive at the resolved function
+		if (branchTargetAddress == pltToRealFctStartMap[pltTargetAddress])
+		{
 			_pltState = PLT_STATE_INVALID;
 			CERR_DEBUG
 				<< "[PLT] Switching to PLT_STATE_INVALID: "
-				<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-				<< " -> " << targetImgId << " " << GetInsOffset(branchTargetAddress, targetImg)
+				<< std::hex << img->imageId << " " << img->GetInsOffset(ip)
+				<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress)
 				<< std::endl;
+
+			// Reset tracked stack frame size
+			if (stackFrames.empty())
+			{
+				CERR_ERROR << "[PLT] Can't reset tracked stack frame size, as the stack frame list is empty: "
+					<< std::hex << img->imageId << " " << img->GetInsOffset(ip)
+					<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress)
+					<< std::endl;
+
+				return;
+			}
+
+			auto& currentFrame = stackFrames.back();
+
+			// Sanity check
+			if (currentFrame->functionStartAddress != branchTargetAddress)
+			{
+				const ImageData* frameFunctionImage = GetImageByAddress(currentFrame->functionStartAddress);
+
+				CERR_ERROR << "[PLT] Unexpected stack frame function address when resetting stack frame size tracking: "
+					<< std::hex << img->imageId << " " << img->GetInsOffset(ip)
+					<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress)
+					<< ", actual address " << frameFunctionImage->imageId << " " << frameFunctionImage->GetInsOffset(currentFrame->functionStartAddress)
+					<< std::endl;
+
+				return;
+			}
+			
+			blockIdToRemainingFrameLengthMap[currentFrame->blockId] = currentFrame->blockSize;
 		}
 	}
 
@@ -1576,6 +1614,12 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 			UINT64 rspVal = PIN_GetContextReg(context, REG_RSP);
 
 			AllocateNewStackFrame(branchTargetAddress, targetImgId, targetOffset, rspVal);
+
+			CERR_DEBUG
+				<< "Allocating new stack frame for suspected tail call: "
+				<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
+				<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress) << " (" << branchTargetAddress << ")"
+				<< std::endl;
 		}
 	}
 }
@@ -1617,9 +1661,7 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 			}
 
 			FunctionData* functionState = oldFunctionStateIt->second;
-			functionState->startAddress = functionAddress;
 			_functionStates.erase(oldFunctionStateIt);
-			_functionStates[functionAddress] = functionState;
 
 			// Reset current stack frame, in case the `push` instructions in the PLT were picked up
 			auto& currentStackFrame = stackFrames.back();
@@ -1641,6 +1683,29 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 			}
 
 			functionState->maximumFrameSize = maxFunctionStackFrameSize;
+
+			// Save updated function state
+			// Check whether there is already a function state from an earlier PLT resolution process, so we don't lose information
+			auto existingFunctionStateIt = _functionStates.find(functionAddress);
+			if (existingFunctionStateIt != _functionStates.end())
+			{
+				// We need to merge the new state into the existing one
+				FunctionData* existingState = existingFunctionStateIt->second;
+
+				existingState->instructionsAndStackOffsets.insert(functionState->instructionsAndStackOffsets.begin(), functionState->instructionsAndStackOffsets.end());
+				existingState->stackFrameMemoryBlocks.insert(functionState->stackFrameMemoryBlocks.begin(), functionState->stackFrameMemoryBlocks.end());
+
+				if (existingState->maximumFrameSize < functionState->maximumFrameSize)
+					existingState->maximumFrameSize = functionState->maximumFrameSize;
+
+				delete functionState;
+			}
+			else
+			{
+				// Just store the new state
+				functionState->startAddress = functionAddress;
+				_functionStates[functionAddress] = functionState;
+			}
 
 			_pltState = PLT_STATE_LINKING_DONE;
 			CERR_DEBUG
@@ -1758,9 +1823,7 @@ VOID HandlePltExit(ADDRINT branchTargetAddress, ADDRINT ip, const ImageData* img
 	}
 
 	FunctionData* functionState = oldFunctionStateIt->second;
-	functionState->startAddress = functionAddress;
 	_functionStates.erase(oldFunctionStateIt);
-	_functionStates[functionAddress] = functionState;
 
 	// Update image IDs/offsets in function's stack frames
 	for (auto& stackFrame : functionState->stackFrameMemoryBlocks)
@@ -1768,6 +1831,29 @@ VOID HandlePltExit(ADDRINT branchTargetAddress, ADDRINT ip, const ImageData* img
 		stackFrame->imageId = functionImageId;
 		stackFrame->offset = functionOffset;
 		stackFrame->functionStartAddress = functionAddress;
+	}
+
+	// Save updated function state
+	// Check whether there is already a function state from an earlier PLT resolution process, so we don't lose information
+	auto existingFunctionStateIt = _functionStates.find(functionAddress);
+	if (existingFunctionStateIt != _functionStates.end())
+	{
+		// We need to merge the new state into the existing one
+		FunctionData* existingState = existingFunctionStateIt->second;
+
+		existingState->instructionsAndStackOffsets.insert(functionState->instructionsAndStackOffsets.begin(), functionState->instructionsAndStackOffsets.end());
+		existingState->stackFrameMemoryBlocks.insert(functionState->stackFrameMemoryBlocks.begin(), functionState->stackFrameMemoryBlocks.end());
+
+		if (existingState->maximumFrameSize < functionState->maximumFrameSize)
+			existingState->maximumFrameSize = functionState->maximumFrameSize;
+
+		delete functionState;
+	}
+	else
+	{
+		// Just store the new state
+		functionState->startAddress = functionAddress;
+		_functionStates[functionAddress] = functionState;
 	}
 
 	// PLT call done 
@@ -1780,7 +1866,7 @@ VOID HandlePltExit(ADDRINT branchTargetAddress, ADDRINT ip, const ImageData* img
 
 }
 
-VOID GetCallstack() 
+VOID GetCallstack()
 {
 	// We take all entries that belong to the allocation for which we called GetCallstack()
 	// Compare to blockId - 1 as the counter has been changed directly after adding memory block entry
@@ -1797,7 +1883,7 @@ VOID GetCallstack()
 			entry->sourceAddress,
 			entry->targetAddress,
 			currentBlockId
-			);
+		);
 		callstackEntries.push_back(copy);
 	}
 }
@@ -1824,27 +1910,27 @@ const ImageData* GetImageById(UINT32 id)
 	return _invalidImage;
 }
 
-VOID SetKeySize(ADDRINT keySz) 
+VOID SetKeySize(ADDRINT keySz)
 {
 	keySize = keySz;
 }
 
-inline BOOL AddressIsTainted(ADDRINT address) 
+inline BOOL AddressIsTainted(ADDRINT address)
 {
 	// Get the taint value at the memory address
 	return !tag_is_empty(tagmap_getb(address));
 }
 
-VOID RegisterIsTainted(THREADID tid, ADDRINT address) 
+VOID RegisterIsTainted(THREADID tid, ADDRINT address)
 {
 	RegisterTaintStatus& taintStatusData = insAddrToRegTaintStatusMap[address];
 
 	// Get the taint status of all registers for the instruction at address "address"
-	for (auto& reg : regs) 
+	for (auto& reg : regs)
 	{
-		for (UINT32 i = 0; i < REG_Size(reg); ++i) 
+		for (UINT32 i = 0; i < REG_Size(reg); ++i)
 		{
-			if (!(tag_is_empty(RTAG[REG_INDX(reg)][i]))) 
+			if (!(tag_is_empty(RTAG[REG_INDX(reg)][i])))
 			{
 				taintStatusData.SecretRegs.insert(reg);
 				break;
@@ -1869,12 +1955,12 @@ bool AddressInPlt(ADDRINT address)
 	return GetPltSectionForAddress(address) != nullptr;
 }
 
-VOID ClearGlobals(ADDRINT mainStartAddress, CONTEXT* context) 
+VOID ClearGlobals(ADDRINT mainStartAddress, CONTEXT* context)
 {
 	// Clear the contents
 	sources.clear();
 	blockIdToRemainingFrameLengthMap.clear();
-	
+
 	callstackEntries.clear();
 	callstack.clear();
 	memoryBlocks.clear(); // TODO memory leak: Free all that are not in inputMemoryBlockData
@@ -1902,7 +1988,7 @@ VOID ClearGlobals(ADDRINT mainStartAddress, CONTEXT* context)
 	// Initialize the callstack with a root entry
 	callstack.push_back(new CallstackEntry(
 		0, 0, 0, 0, 0, 0, 0
-		));
+	));
 
 	// thread_ctx_init() would bring multiple calls of PIN_AddThreadStartFunction
 	(void)memset(ins_desc, 0, sizeof(ins_desc));
@@ -1924,26 +2010,26 @@ VOID ClearGlobals(ADDRINT mainStartAddress, CONTEXT* context)
 	AllocateNewStackFrame(mainStartAddress, targetImgId, targetImg->GetInsOffset(mainStartAddress), rspVal);
 }
 
-VOID TaintStatusRegisters(INT32 code, VOID* v) 
+VOID TaintStatusRegisters(INT32 code, VOID* v)
 {
 	TaintRegResults << "[INFO] Taint status registers results: insAddr, imgId, insOffset, regs" << std::endl;
 
 	int ctr = 0;
-	for (const auto& ins : insAddrToRegTaintStatusMap) 
+	for (const auto& ins : insAddrToRegTaintStatusMap)
 	{
-		if (!ins.second.SecretRegs.empty()) 
+		if (!ins.second.SecretRegs.empty())
 			ctr++;
 	}
 	TaintRegResults << std::dec << ctr << std::endl;
 
-	for (const auto& ins : insAddrToRegTaintStatusMap) 
+	for (const auto& ins : insAddrToRegTaintStatusMap)
 	{
-		if (!ins.second.SecretRegs.empty()) 
+		if (!ins.second.SecretRegs.empty())
 		{
 			TaintRegResults << std::hex << ins.first << "\t";
 			TaintRegResults << std::dec << disasAddrToImgIdMap[ins.first] << "\t";
 			TaintRegResults << std::hex << GetImageById(disasAddrToImgIdMap[ins.first])->GetInsOffset(ins.first) << "\t";
-			for (const auto& reg : ins.second.SecretRegs) 
+			for (const auto& reg : ins.second.SecretRegs)
 			{
 				TaintRegResults << REG_StringShort(REG_FullRegName(reg)) << "\t";
 			}
@@ -1976,7 +2062,7 @@ VOID StoreMemoryTraceAfter(UINT64 rip, UINT32 width)
 
 	if (image == _invalidImage || image->imageId == ldImgId)
 		return;
-	
+
 	bool isSecret = false;
 	for (UINT32 i = 0; i < width; ++i)
 	{
@@ -2019,6 +2105,8 @@ VOID StoreReadAccessInfoBefore(ADDRINT ea, ADDRINT ip, UINT32 size)
 	else
 	{
 		accessSecrecy = new AccessSecrecyData();
+		accessSecrecy->ip = ip;
+		accessSecrecy->width = size;
 		insAddrToAccessInfoMap[ip] = accessSecrecy;
 	}
 
@@ -2041,7 +2129,7 @@ VOID StoreWriteAccessInfoAfter(ADDRINT ip, UINT32 size)
 			break;
 		}
 	}
-	
+
 	AccessSecrecyData* accessSecrecy;
 	const auto& search = insAddrToAccessInfoMap.find(ip);
 	if (search != insAddrToAccessInfoMap.end())
@@ -2051,6 +2139,8 @@ VOID StoreWriteAccessInfoAfter(ADDRINT ip, UINT32 size)
 	else
 	{
 		accessSecrecy = new AccessSecrecyData();
+		accessSecrecy->width = size;
+		accessSecrecy->ip = ip;
 		insAddrToAccessInfoMap[ip] = accessSecrecy;
 	}
 
@@ -2058,7 +2148,7 @@ VOID StoreWriteAccessInfoAfter(ADDRINT ip, UINT32 size)
 }
 
 
-VOID Fini(INT32 code, VOID* v) 
+VOID Fini(INT32 code, VOID* v)
 {
 
 	// Write pending memory access trace entries
@@ -2069,7 +2159,7 @@ VOID Fini(INT32 code, VOID* v)
 	}
 
 	CERR_DEBUG << "pltToFunctionStart (plt -> start)" << std::endl;
-	for (const auto& addr : pltToRealFctStartMap) 
+	for (const auto& addr : pltToRealFctStartMap)
 	{
 		auto pltImg = GetImageByAddress(addr.first);
 		UINT64 pltOff = pltImg->GetInsOffset(addr.first);
@@ -2084,7 +2174,7 @@ VOID Fini(INT32 code, VOID* v)
 	CERR_INFO << "Printing image information." << std::endl;
 	ss << "[INFO] Image information: id, size, name, start, end" << std::endl;
 	ss << images.size() << std::endl;
-	for (const auto& img : images) 
+	for (const auto& img : images)
 	{
 		ss << img->imageId << "\t";
 		ss << std::hex << img->imageSize << "\t";
@@ -2120,7 +2210,7 @@ VOID Fini(INT32 code, VOID* v)
 			secOffs.insert(stackFrame->secretOffsets.begin(), stackFrame->secretOffsets.end());
 		}
 
-		secretStackOffsetsPerFunction[functionState->startAddress] = secOffs;	
+		secretStackOffsetsPerFunction[functionState->startAddress] = secOffs;
 
 		auto functionImage = GetImageByAddress(functionState->startAddress);
 
@@ -2173,7 +2263,7 @@ VOID Fini(INT32 code, VOID* v)
 	CERR_INFO << "Printing callstack information." << std::endl;
 	ss << "[INFO] Callstack entries: srcImgId, srcOffset, tgtImgId, tgtOffset, srcAddr, tgtAddr, blockId" << std::endl;
 	ss << std::dec << callstackEntries.size() << std::endl;
-	for (const auto& entry : callstackEntries) 
+	for (const auto& entry : callstackEntries)
 	{
 		ss << std::dec << entry->sourceImageId << "\t"
 			<< std::hex << entry->sourceImageOffset << "\t"
@@ -2269,7 +2359,7 @@ VOID Fini(INT32 code, VOID* v)
 	for (auto& mergedInstruction : mergedInstructions)
 	{
 		auto instruction = mergedInstruction.second;
-		
+
 		if ((instruction->accessType & AccessType::SECRET) == AccessType::SECRET)
 		{
 			interestingInstructions.push_back(instruction);
@@ -2306,49 +2396,63 @@ VOID Fini(INT32 code, VOID* v)
 	{
 		CERR_INFO << "Printing access secrecy information." << std::endl;
 
-		ss << "[INFO] Access Secrecy: ins (img, offset), secretReads, secretWrites, publicReads, publicWrites" << std::endl;
+		ss << "[INFO] Access Secrecy: ins (img, offset), width, secretReads, secretWrites, publicReads, publicWrites" << std::endl;
+
+		// Sort instruction info by total count
+		std::vector<AccessSecrecyData*> accessSecrecyData;
+		for (const auto& ins : insAddrToAccessInfoMap)
+		{
+			ins.second->totalCount = ins.second->secretReadCount + ins.second->secretWriteCount + ins.second->publicReadCount + ins.second->publicWriteCount;
+			accessSecrecyData.push_back(ins.second);
+		}
+		std::sort(accessSecrecyData.begin(), accessSecrecyData.end(), [=](const AccessSecrecyData* a, const AccessSecrecyData* b)
+			{
+				return a->totalCount < b->totalCount;
+			});
 
 		ss << std::dec << interestingInstructions.size() << std::endl;
-		for (const auto& ins: insAddrToAccessInfoMap)
+		for (const AccessSecrecyData* ins : accessSecrecyData) // TODO iterate over interestingInstructions and search map, should be more efficient
 		{
-			for (const auto& out: interestingInstructions)
+			for (const auto& out : interestingInstructions)
 			{
-				if (out->instructionAddress == ins.first)
+				if (out->instructionAddress == ins->ip)
 				{
-					auto img = GetImageByAddress(ins.first);
+					auto img = GetImageByAddress(ins->ip);
 					ss << std::hex << img->imageId << "\t"
-						<< GetInsOffset(ins.first, img) << "\t" << std::dec
-						<< std::setw(4) << ins.second->secretReadCount << "\t"
-						<< std::setw(4) <<  ins.second->secretWriteCount << "\t"
-						<< std::setw(4) <<  ins.second->publicReadCount << "\t"
-						<< std::setw(4) <<  ins.second->publicWriteCount << "\t" << std::endl;
+						<< img->GetInsOffset(ins->ip) << "\t" << std::dec
+						<< std::setw(4) << ins->width << "\t"
+						<< std::setw(4) << ins->secretReadCount << "\t"
+						<< std::setw(4) << ins->secretWriteCount << "\t"
+						<< std::setw(4) << ins->publicReadCount << "\t"
+						<< std::setw(4) << ins->publicWriteCount << "\t"
+						<< std::endl;
 				}
 			}
 		}
 		TraceFile << ss.rdbuf() << std::flush;
 	}
 
-	if (enableTrackTaintedRegs) 
+	if (enableTrackTaintedRegs)
 	{
 		CERR_INFO << "Printing register taint status information." << std::endl;
 		ss << "[INFO] Taint status registers results: insAddr, imgId, insOffset, regs" << std::endl;
 
 		int ctr = 0;
-		for (const auto& ins : insAddrToRegTaintStatusMap) 
+		for (const auto& ins : insAddrToRegTaintStatusMap)
 		{
-			if (!ins.second.SecretRegs.empty()) 
+			if (!ins.second.SecretRegs.empty())
 				ctr++;
 		}
 		ss << std::dec << ctr << std::endl;
 
-		for (const auto& ins : insAddrToRegTaintStatusMap) 
+		for (const auto& ins : insAddrToRegTaintStatusMap)
 		{
-			if (!ins.second.SecretRegs.empty()) 
+			if (!ins.second.SecretRegs.empty())
 			{
 				ss << std::hex << ins.first << "\t"
 					<< std::dec << disasAddrToImgIdMap[ins.first] << "\t"
 					<< std::hex << GetImageById(disasAddrToImgIdMap[ins.first])->GetInsOffset(ins.first) << "\t";
-				for (const auto& reg : ins.second.SecretRegs) 
+				for (const auto& reg : ins.second.SecretRegs)
 				{
 					ss << REG_StringShort(REG_FullRegName(reg)) << "\t";
 				}
@@ -2360,14 +2464,14 @@ VOID Fini(INT32 code, VOID* v)
 	}
 
 
-	if (enableTrackSyscalls) 
+	if (enableTrackSyscalls)
 	{
 		// TODO: this only considers non-stack blocks; print instructions that touch secret blocks
 		std::vector<SyscallData*> secretSyscallInputs;
 
 		for (const auto& blk : memoryBlocks)
 		{
-			if (blk->secret) 
+			if (blk->secret)
 			{
 				// Check whether we input encrypted data to syscalls
 				ADDRINT blockStart = blk->startAddress;
@@ -2389,7 +2493,7 @@ VOID Fini(INT32 code, VOID* v)
 					ADDRINT arg5 = call->arg5;
 					bool s5 = arg5 >= blockStart && arg5 < blockEnd;
 
-					if (s0 || s1 || s2 || s3 || s4 || s5) 
+					if (s0 || s1 || s2 || s3 || s4 || s5)
 					{
 						CERR_INFO << "[!]     Found encrypted syscall data in block " << blk->blockId << "." << std::endl;
 						secretSyscallInputs.push_back(call);
@@ -2442,7 +2546,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 						IARG_MEMORYREAD_EA,
 						IARG_INST_PTR,
 						IARG_MEMORYREAD_SIZE,
-						IARG_END);	
+						IARG_END);
 				}
 				if (INS_IsMemoryWrite(ins) && !INS_IsControlFlow(ins))
 				{
@@ -2452,7 +2556,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 					INS_InsertPredicatedCall(ins, IPOINT_AFTER, (AFUNPTR)StoreWriteAccessInfoAfter,
 						IARG_INST_PTR,
 						IARG_MEMORYWRITE_SIZE,
-						IARG_END);	
+						IARG_END);
 				}
 			}
 
@@ -2511,7 +2615,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 
 			 // TODO This only detects instructions that explicitly use RBP/RSP; other pointers are not detected
 			 // This should be moved into the generic write call back, where we check for stack memory anyway
-			if (INS_IsStackWrite(ins) && !INS_IsCall(ins) && instructionType != XED_ICLASS_PUSH) 
+			if (INS_IsStackWrite(ins) && !INS_IsCall(ins) && instructionType != XED_ICLASS_PUSH)
 			{
 				INS_InsertCall(ins, IPOINT_BEFORE, AFUNPTR(AdjustCurrentStackFrameRedZone),
 					IARG_MEMORYWRITE_EA,
@@ -2520,7 +2624,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 					IARG_END);
 			}
 
-			if (instructionType == XED_ICLASS_PUSH) 
+			if (instructionType == XED_ICLASS_PUSH)
 			{
 				// Adjust the new end of stack frame
 				ADDRINT subSize = 8;
@@ -2563,7 +2667,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 				}
 			}
 
-			if (instructionType == XED_ICLASS_POP) 
+			if (instructionType == XED_ICLASS_POP)
 			{
 				ADDRINT addSize = 8;
 				INS_InsertCall(ins, IPOINT_BEFORE, AFUNPTR(TrackStackFramesAddPop),
@@ -2593,7 +2697,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 				}
 			}
 
-			if (instructionType == XED_ICLASS_LEAVE) 
+			if (instructionType == XED_ICLASS_LEAVE)
 			{
 				INS_InsertCall(ins, IPOINT_BEFORE, AFUNPTR(TrackStackFramesLeave),
 					IARG_CONST_CONTEXT,
@@ -2602,7 +2706,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 					IARG_END);
 			}
 
-			if (instructionType == XED_ICLASS_LEA && REG(INS_OperandReg(ins, 0)) == REG_RSP) 
+			if (instructionType == XED_ICLASS_LEA && REG(INS_OperandReg(ins, 0)) == REG_RSP)
 			{
 				INS_InsertCall(ins, IPOINT_BEFORE, AFUNPTR(TrackStackFramesLea),
 					IARG_CONST_CONTEXT,
@@ -2614,7 +2718,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 
 			// Trace instructions with memory read
 			// Use the *PredicatedCall instrumentation, so we only log memory accesses which are actually executed (e.g. cmov)
-			if (!INS_IsControlFlow(ins) && INS_IsMemoryRead(ins) && INS_IsStandardMemop(ins)) 
+			if (!INS_IsControlFlow(ins) && INS_IsMemoryRead(ins) && INS_IsStandardMemop(ins))
 			{
 				// Add read to set of reads for block
 				INS_InsertPredicatedCall(ins, IPOINT_BEFORE, AFUNPTR(InsertMemoryReadWriteEntry),
@@ -2656,7 +2760,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 			}
 
 			// Trace instructions with memory write
-			if (!INS_IsControlFlow(ins) && INS_IsMemoryWrite(ins) && INS_IsStandardMemop(ins)) 
+			if (!INS_IsControlFlow(ins) && INS_IsMemoryWrite(ins) && INS_IsStandardMemop(ins))
 			{
 				// Add write to set of writes for block
 				INS_InsertPredicatedCall(ins, IPOINT_BEFORE, AFUNPTR(InsertMemoryReadWriteEntry),
@@ -2677,7 +2781,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 			}
 
 			// For control flow instructions, there is no taint status update after their execution
-			if (INS_IsControlFlow(ins) && INS_IsMemoryRead(ins) && !INS_IsCall(ins) && !INS_IsRet(ins)) 
+			if (INS_IsControlFlow(ins) && INS_IsMemoryRead(ins) && !INS_IsCall(ins) && !INS_IsRet(ins))
 			{
 				// Add read to set of reads for block
 				INS_InsertPredicatedCall(ins, IPOINT_BEFORE, AFUNPTR(InsertMemoryReadWriteEntry),
@@ -2690,7 +2794,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 					IARG_END);
 			}
 
-			if (INS_IsControlFlow(ins) && INS_HasMemoryRead2(ins) && !INS_IsCall(ins) && !INS_IsRet(ins)) 
+			if (INS_IsControlFlow(ins) && INS_HasMemoryRead2(ins) && !INS_IsCall(ins) && !INS_IsRet(ins))
 			{
 				// Add read to set of reads for block
 				INS_InsertPredicatedCall(ins, IPOINT_BEFORE, AFUNPTR(InsertMemoryReadWriteEntry),
@@ -2703,7 +2807,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 					IARG_END);
 			}
 
-			if (INS_IsControlFlow(ins) && INS_IsMemoryWrite(ins) && !INS_IsCall(ins) && !INS_IsRet(ins)) 
+			if (INS_IsControlFlow(ins) && INS_IsMemoryWrite(ins) && !INS_IsCall(ins) && !INS_IsRet(ins))
 			{
 				// Add write to set of writes for block
 				INS_InsertPredicatedCall(ins, IPOINT_BEFORE, AFUNPTR(InsertMemoryReadWriteEntry),
@@ -2719,7 +2823,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 			/*
 			 * Track register taint information for every instruction
 			 */
-			if (enableTrackTaintedRegs) 
+			if (enableTrackTaintedRegs)
 			{
 				// Check taint status each time the instruction is executed
 				INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)RegisterIsTainted,
@@ -2759,7 +2863,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
  *
  * returns:     0 on success, 1 on error
  */
-int ins_set_pre(ins_desc_t* desc, void (*pre)(INS)) 
+int ins_set_pre(ins_desc_t* desc, void (*pre)(INS))
 {
 	// sanity checks
 	if (unlikely((desc == nullptr) | (pre == nullptr)))
@@ -2781,7 +2885,7 @@ int ins_set_pre(ins_desc_t* desc, void (*pre)(INS))
  *
  * returns:     0 on success, 1 on error
  */
-int ins_set_post(ins_desc_t* desc, void (*post)(INS)) 
+int ins_set_post(ins_desc_t* desc, void (*post)(INS))
 {
 	// sanity checks
 	if (unlikely((desc == nullptr) | (post == nullptr)))
@@ -2801,7 +2905,7 @@ int ins_set_post(ins_desc_t* desc, void (*post)(INS))
  * @desc:       the ins descriptor
  * returns:     0 on success, 1 on error
  */
-int ins_clr_pre(ins_desc_t* desc) 
+int ins_clr_pre(ins_desc_t* desc)
 {
 	// sanity check
 	if (unlikely(desc == nullptr))
@@ -2821,7 +2925,7 @@ int ins_clr_pre(ins_desc_t* desc)
  * @desc:       the ins descriptor
  * returns:     0 on success, 1 on error
  */
-int ins_clr_post(ins_desc_t* desc) 
+int ins_clr_post(ins_desc_t* desc)
 {
 	/* sanity check */
 	if (unlikely(desc == nullptr))
@@ -2845,7 +2949,7 @@ int ins_clr_post(ins_desc_t* desc)
  * @flags:	OS specific flags for the new thread
  * @v:		callback value
  */
-static void thread_alloc(THREADID tid, CONTEXT* ctx, INT32 flags, VOID* v) 
+static void thread_alloc(THREADID tid, CONTEXT* ctx, INT32 flags, VOID* v)
 {
 	// store the old threads context
 	thread_ctx_t* tctx_prev = threads_ctx;
@@ -2856,7 +2960,7 @@ static void thread_alloc(THREADID tid, CONTEXT* ctx, INT32 flags, VOID* v)
 	 * NOTE: in case the tid is greater than tctx_ct + THREAD_CTX_BLK we
 	 * need to loop in order to allocate enough thread contexts
 	 */
-	while (unlikely(tid >= tctx_ct)) 
+	while (unlikely(tid >= tctx_ct))
 	{
 		// reallocate space; optimized branch
 		if (unlikely((threads_ctx = (thread_ctx_t*)realloc(
@@ -2880,7 +2984,7 @@ static void thread_alloc(THREADID tid, CONTEXT* ctx, INT32 flags, VOID* v)
 	}
 }
 
-static void post_read_hook(THREADID tid, syscall_ctx_t* ctx) 
+static void post_read_hook(THREADID tid, syscall_ctx_t* ctx)
 {
 	/* read() was not successful; optimized branch */
 	const size_t ret = ctx->ret;
@@ -2896,7 +3000,7 @@ static void post_read_hook(THREADID tid, syscall_ctx_t* ctx)
 
 	/* taint-source */
 	unsigned int read_off = 0;
-	if (fd == STDIN_FILENO) 
+	if (fd == STDIN_FILENO)
 	{
 		read_off = stdin_read_off;
 		stdin_read_off += ret;
@@ -2918,7 +3022,7 @@ static void post_read_hook(THREADID tid, syscall_ctx_t* ctx)
  * @std:	syscall standard (e.g., Linux IA-32, IA-64, etc)
  * @v:		callback value
  */
-static void sysenter_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID* v) 
+static void sysenter_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID* v)
 {
 	// get the syscall number
 	size_t syscall_nr = PIN_GetSyscallNumber(ctx, std);
@@ -2954,13 +3058,13 @@ static void sysenter_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID
 	 * we save only when we have a callback registered or the syscall
 	 * returns a value in the arguments
 	 */
-	if (syscall_desc[syscall_nr].save_args | syscall_desc[syscall_nr].retval_args) 
+	if (syscall_desc[syscall_nr].save_args | syscall_desc[syscall_nr].retval_args)
 	{
 		/*
 		 * dump only the appropriate number of arguments
 		 * or yet another lame way to avoid a loop (vpk)
 		 */
-		switch (syscall_desc[syscall_nr].nargs) 
+		switch (syscall_desc[syscall_nr].nargs)
 		{
 			/* 6 */
 			case SYSCALL_ARG5 + 1:
@@ -3018,7 +3122,7 @@ static void sysenter_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID
  * @std:	syscall standard (e.g., Linux IA-32, IA-64, etc)
  * @v:		callback value
  */
-static void sysexit_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID* v) 
+static void sysexit_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID* v)
 {
 	// iterator
 	size_t i;
@@ -3037,7 +3141,7 @@ static void sysexit_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID*
 	}
 
 	// unknown syscall; optimized branch
-	if (unlikely(syscall_nr < 0)) 
+	if (unlikely(syscall_nr < 0))
 	{
 		fprintf(stderr, "%s:%u: unknown syscall(num=%d)\n", __func__, __LINE__, syscall_nr);
 		// no context save and no pre-syscall callback invocation
@@ -3056,7 +3160,7 @@ static void sysexit_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID*
 	  * we save only when we have a callback registered or the syscall
 	  * returns a value in the arguments
 	  */
-	if (syscall_desc[syscall_nr].save_args | syscall_desc[syscall_nr].retval_args) 
+	if (syscall_desc[syscall_nr].save_args | syscall_desc[syscall_nr].retval_args)
 	{
 		// dump only the appropriate number of arguments
 		threads_ctx[tid].syscall_ctx.ret = PIN_GetSyscallReturn(ctx, std);
@@ -3071,11 +3175,11 @@ static void sysexit_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID*
 		   PIN_GetSyscallErrno(ctx, std); */
 
 		   // call the post-syscall callback (if any)
-		if (syscall_desc[syscall_nr].post != nullptr) 
+		if (syscall_desc[syscall_nr].post != nullptr)
 		{
 			syscall_desc[syscall_nr].post(tid, &threads_ctx[tid].syscall_ctx);
 		}
-		else 
+		else
 		{
 			// default post-syscall handling
 
@@ -3112,7 +3216,7 @@ static void sysexit_save(THREADID tid, CONTEXT* ctx, SYSCALL_STANDARD std, VOID*
  *
  * returns: 0 on success, 1 on error
  */
-static inline int thread_ctx_init() 
+static inline int thread_ctx_init()
 {
 	/* allocate space for the thread contexts; optimized branch
 	 *
@@ -3120,7 +3224,7 @@ static inline int thread_ctx_init()
 	 */
 	threads_ctx = new thread_ctx_t[THREAD_CTX_BLK]();
 
-	if (unlikely(threads_ctx == nullptr)) 
+	if (unlikely(threads_ctx == nullptr))
 	{
 		fprintf(stderr, "%s:%u", __func__, __LINE__);
 		// failed
@@ -3143,7 +3247,7 @@ static inline int thread_ctx_init()
 }
 
 // Handles an internal exception of this trace tool.
-EXCEPT_HANDLING_RESULT HandlePinToolException(THREADID tid, EXCEPTION_INFO* exceptionInfo, PHYSICAL_CONTEXT* physicalContext, VOID* v) 
+EXCEPT_HANDLING_RESULT HandlePinToolException(THREADID tid, EXCEPTION_INFO* exceptionInfo, PHYSICAL_CONTEXT* physicalContext, VOID* v)
 {
 	// Output exception data
 	CERR_ERROR << "Internal exception: " << PIN_ExceptionToString(exceptionInfo) << std::endl;
