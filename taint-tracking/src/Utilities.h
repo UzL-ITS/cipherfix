@@ -45,6 +45,11 @@ struct ImageData {
 public:
     // Constructor.
     ImageData(UINT32 imgId, UINT64 imgSize, std::string imgName, ADDRINT imgStartAddr, ADDRINT imgEndAddr);
+
+    inline UINT64 GetInsOffset(UINT64 instructionAddress) const
+    {
+        return instructionAddress - this->imageStartAddress;
+    }
 };
 
 // Contains metadata of memory blocks.
@@ -130,10 +135,13 @@ struct FunctionData
 // Contains metadata of memory read and write accesses
 struct AccessSecrecyData
 {
+    ADDRINT ip;
+    int width;
     int secretReadCount;
     int secretWriteCount;
     int publicReadCount;
     int publicWriteCount;
+    int totalCount;
 };
 
 // Contains metadata of syscall arguments
@@ -219,3 +227,7 @@ namespace std
         }
     };
 }
+
+// Utility functions for resolving images.
+const ImageData* GetImageByAddress(UINT64 address);
+const ImageData* GetImageById(UINT32 id);

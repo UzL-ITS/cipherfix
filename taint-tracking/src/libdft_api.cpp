@@ -48,6 +48,13 @@
 #include <stack>
 #include <sys/resource.h>
 
+ // HACK for differing namespaces on Windows
+#if _WIN32
+#define unordered_set tr1::unordered_set
+#define unordered_map tr1::unordered_map
+#endif
+
+
  /* GLOBAL VARIABLES */
 
  // The resulting trace file.
@@ -135,7 +142,7 @@ struct InstructionDataComparer
 };
 
 // Instruction set.
-std::tr1::unordered_set<InstructionData*, InstructionDataHash, InstructionDataComparer> instructions;
+std::unordered_set<InstructionData*, InstructionDataHash, InstructionDataComparer> instructions;
 
 // Dummy object for fast checking whether an instruction/memory address pair is already present in the instruction set.
 InstructionData* tmpInstruction = new InstructionData(0, 0, 0, 0, 0, nullptr, AccessType::NONE, 0);
@@ -266,9 +273,6 @@ VOID DropTaint();
 VOID Classify(ADDRINT secret, ADDRINT size);
 VOID Fini(INT32 code, VOID* v);
 VOID GetCallstack();
-const ImageData* GetImageByAddress(UINT64 address);
-const ImageData* GetImageById(UINT32 id);
-UINT64 GetInsOffset(UINT64 instructionAddress, const ImageData* image);
 VOID SetKeySize(ADDRINT keySz);
 EXCEPT_HANDLING_RESULT HandlePinToolException(THREADID tid, EXCEPTION_INFO* exceptionInfo, PHYSICAL_CONTEXT* physicalContext, VOID* v);
 VOID InsertHeapAllocAddressReturnEntry(ADDRINT allocationAddress);
@@ -524,6 +528,14 @@ void libdft_die()
 	PIN_Detach();
 }
 
+// Forces the stack frame of the given function to public.
+VOID ForceStackFramePublic(IMG img, const char* name)
+{
+	RTN rtn = RTN_FindByName(img, name);
+	if (RTN_Valid(rtn))
+		_forcedPublicFunctions.insert(RTN_Address(rtn));
+}
+
 // [Callback] Instruments the memory allocation / deallocation functions.
 VOID InstrumentImage(IMG img, VOID* v)
 {
@@ -551,6 +563,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 		libcImgId = id;
 
 		// Remove all instrumentation to ensure that early loaded libc-instructions are correctly instrumented.
+		CERR_INFO << "   Dropping all instrumentation" << std::endl;
 		PIN_RemoveInstrumentation();
 	}
 
@@ -657,7 +670,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 			IARG_END);
 
 		RTN_Close(declassifyRtn);
-		CERR_INFO << "    declassify() instrumented." << std::endl;
+		CERR_INFO << "   declassify() instrumented." << std::endl;
 	}
 
 	// Function to untaint all data
@@ -671,7 +684,7 @@ VOID InstrumentImage(IMG img, VOID* v)
 			IARG_END);
 
 		RTN_Close(dropTaintRtn);
-		CERR_INFO << "    drop_taint() instrumented." << std::endl;
+		CERR_INFO << "   drop_taint() instrumented." << std::endl;
 	}
 
 	// Find allocation and free functions to log allocation sizes and addresses
@@ -786,9 +799,8 @@ VOID InstrumentImage(IMG img, VOID* v)
 	// HACK for OpenSSL ECDSA: The handwritten SHA-512 assembly does weird things with the stack that break our heuristics.
 	// Thus, for now, we just treat the entire function as public. This shouldn't cause any exploitable leakage.
 	// (see UpdateBlockTaintStatus)
-	RTN opensslSha512Rtn = RTN_FindByName(img, "sha512_block_data_order");
-	if (RTN_Valid(opensslSha512Rtn))
-		_forcedPublicFunctions.insert(RTN_Address(opensslSha512Rtn));
+	ForceStackFramePublic(img, "sha512_block_data_order");
+	ForceStackFramePublic(img, "sha512_block_data_order_avx2");
 }
 
 VOID AddReadSecret(ADDRINT ret, ADDRINT buf, UINT32 read_off) 
@@ -881,7 +893,7 @@ VOID SysBefore_CheckArgsEncrypted(ADDRINT ip, ADDRINT num, ADDRINT argCount, ADD
 	// Add syscall data
 	auto img = GetImageByAddress(ip);
 	syscallData.push_back(new SyscallData(
-		ip, img->imageId, GetInsOffset(ip, img), num, argCount, syscallArgs.at(0), syscallArgs.at(1),
+		ip, img->imageId, img->GetInsOffset(ip), num, argCount, syscallArgs.at(0), syscallArgs.at(1),
 		syscallArgs.at(2), syscallArgs.at(3), syscallArgs.at(4), syscallArgs.at(5)
 		));
 }
@@ -1041,7 +1053,7 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 						<< "Could not find function state for stack frame of function " << std::hex << funStart
 						<< " when resolving access to " << memoryAddress
 						<< " (relative " << stackBaseOffset
-						<< ") at " << image->imageId << " " << GetInsOffset(instructionAddress, image)
+						<< ") at " << image->imageId << " " << image->GetInsOffset(instructionAddress)
 						<< std::endl;
 				}
 
@@ -1086,12 +1098,12 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 			// a few data structures for the allocator as well. The same is true for memory accesses prior to Pin detecting that
 			// libc was loaded.
 			// For these cases, we use a lower log severity to reduce noise
-			const ImageData *resolvedImage = nullptr;
+			const ImageData* resolvedImage = nullptr;
 			if (_brkMin <= memoryAddress && memoryAddress < _brkMax)
 			{
 				CERR_DEBUG
 					<< "Could not resolve memory access to " << std::hex << memoryAddress
-					<< " at " << image->imageId << " " << GetInsOffset(instructionAddress, image)
+					<< " at " << image->imageId << " " << image->GetInsOffset(instructionAddress)
 					<< ", but address is in heap area"
 					<< std::endl;
 			}
@@ -1099,7 +1111,7 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 			{
 				CERR_DEBUG
 					<< "Could not resolve memory access to " << std::hex << memoryAddress
-					<< " at " << image->imageId << " " << GetInsOffset(instructionAddress, image)
+					<< " at " << image->imageId << " " << image->GetInsOffset(instructionAddress)
 					<< ", likely in libc prior detection by Pin"
 					<< std::endl;
 			}
@@ -1107,7 +1119,7 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 			{
 				CERR_DEBUG
 					<< "Could not resolve memory access to " << std::hex << memoryAddress
-					<< " at " << image->imageId << " " << GetInsOffset(instructionAddress, image)
+					<< " at " << image->imageId << " " << image->GetInsOffset(instructionAddress)
 					<< ", but address is image offset " << image->imageId << " " << (memoryAddress - image->imageStartAddress)
 					<< std::endl;
 			}
@@ -1115,7 +1127,7 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 			{
 				CERR_WARNING
 					<< "Could not resolve memory access to " << std::hex << memoryAddress
-					<< " at " << image->imageId << " " << GetInsOffset(instructionAddress, image)
+					<< " at " << image->imageId << " " << image->GetInsOffset(instructionAddress)
 					<< std::endl;
 
 				// Emit call stack to ease debugging
@@ -1146,7 +1158,7 @@ VOID InsertMemoryReadWriteEntry(UINT32 callBackIndex, ADDRINT instructionAddress
 			size,
 			image->imageId,
 			memoryAddress,
-			GetInsOffset(instructionAddress, image),
+			image->GetInsOffset(instructionAddress),
 			memBlk,
 			AccessType::NONE,
 			memBlk == nullptr && (hasSegmentPrefix || AddressInPlt(instructionAddress))
@@ -1268,7 +1280,7 @@ VOID AdjustCurrentStackFrame(CONTEXT* context, ADDRINT subSize, ADDRINT ip, cons
 	}
 	else
 	{
-		CERR_WARNING << "Stack frame sub at " << std::hex << img->imageId << " " << GetInsOffset(ip, img) << ", but there is no stack frame" << std::endl;
+		CERR_WARNING << "Stack frame sub at " << std::hex << img->imageId << " " << img->GetInsOffset(ip) << ", but there is no stack frame" << std::endl;
 	}
 }
 
@@ -1293,7 +1305,7 @@ VOID AdjustCurrentStackFrameRedZone(ADDRINT memoryAddress, ADDRINT ip, const Ima
 	}
 	else
 	{
-		CERR_WARNING << "Stack frame red zone adjustment at " << std::hex << img->imageId << " " << GetInsOffset(ip, img) << ", but there is no stack frame" << std::endl;
+		CERR_WARNING << "Stack frame red zone adjustment at " << std::hex << img->imageId << " " << img->GetInsOffset(ip) << ", but there is no stack frame" << std::endl;
 	}
 }
 
@@ -1307,7 +1319,7 @@ VOID TrackStackFramesAddPop(ADDRINT addSize, ADDRINT ip, const ImageData* img)
 	}
 	else
 	{
-		CERR_WARNING << "Stack frame add at " << std::hex << img << " " << GetInsOffset(ip, img) << ", but there is no stack frame" << std::endl;
+		CERR_WARNING << "Stack frame add at " << std::hex << img << " " << img->GetInsOffset(ip) << ", but there is no stack frame" << std::endl;
 	}
 }
 
@@ -1370,7 +1382,7 @@ VOID HandleGenericCall(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip
 {
 	auto targetImg = GetImageByAddress(branchTargetAddress);
 	UINT32 targetImgId = targetImg->imageId;
-	UINT64 targetOffset = GetInsOffset(branchTargetAddress, targetImg);
+	UINT64 targetOffset = targetImg->GetInsOffset(branchTargetAddress);
 
 	if (_pltState == PLT_STATE_LINKING)
 	{
@@ -1380,7 +1392,7 @@ VOID HandleGenericCall(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip
 
 	// Update call stack
 	callstack.push_back(new CallstackEntry(
-		img->imageId, GetInsOffset(ip, img), targetImgId,
+		img->imageId, img->GetInsOffset(ip), targetImgId,
 		targetOffset, ip, branchTargetAddress, 0
 		));
 
@@ -1390,9 +1402,10 @@ VOID HandleGenericCall(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip
 		if (_pltState != PLT_STATE_INVALID)
 		{
 			CERR_ERROR << "[PLT] Call into .plt, but we are in state " << std::dec << _pltState << " at "
-				<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
+				<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
 				<< std::endl;
 		}
+
 		// Check whether we already know the actual address of the function
 		const auto& pltMappingIt = pltToRealFctStartMap.find(branchTargetAddress);
 		if (pltMappingIt == pltToRealFctStartMap.end())
@@ -1405,14 +1418,14 @@ VOID HandleGenericCall(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip
 			branchTargetAddress = pltMappingIt->second;
 			targetImg = GetImageByAddress(branchTargetAddress);
 			targetImgId = targetImg->imageId;
-			targetOffset = GetInsOffset(branchTargetAddress, targetImg);
+			targetOffset = targetImg->GetInsOffset(branchTargetAddress);
 		}
 
 		_pltState = PLT_STATE_CALL;
 		CERR_DEBUG
 			<< "[PLT] Switching to PLT_STATE_CALL: "
-			<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-			<< " -> " << targetImgId << " " << GetInsOffset(branchTargetAddress, targetImg)
+			<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
+			<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress) << " (" << branchTargetAddress << ")"
 			<< std::endl;
 
 	}
@@ -1430,7 +1443,7 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 {
 	auto targetImg = GetImageByAddress(branchTargetAddress);
 	UINT32 targetImgId = targetImg->imageId;
-	UINT64 targetOffset = GetInsOffset(branchTargetAddress, targetImg);
+	UINT64 targetOffset = targetImg->GetInsOffset(branchTargetAddress);
 
 	// Update .plt state
 	auto addressPltSection = GetPltSectionForAddress(branchTargetAddress);
@@ -1450,7 +1463,7 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 				branchTargetAddress = pltMappingIt->second;
 				targetImg = GetImageByAddress(branchTargetAddress);
 				targetImgId = targetImg->imageId;
-				targetOffset = GetInsOffset(branchTargetAddress, targetImg);
+				targetOffset = targetImg->GetInsOffset(branchTargetAddress);
 			}
 
 			// New stack frame is allocated below
@@ -1458,8 +1471,8 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 			_pltState = PLT_STATE_CALL;
 			CERR_DEBUG
 				<< "[PLT] Switching to PLT_STATE_CALL: "
-				<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-				<< " -> " << targetImgId << " " << GetInsOffset(branchTargetAddress, targetImg)
+				<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
+				<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress) << " (" << branchTargetAddress << ")"
 				<< std::endl;
 
 		}
@@ -1472,8 +1485,8 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 				_pltState = PLT_STATE_STUB;
 				CERR_DEBUG
 					<< "[PLT] Switching to PLT_STATE_STUB: "
-					<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-					<< " -> " << targetImgId << " " << GetInsOffset(branchTargetAddress, targetImg)
+					<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
+					<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress) << " (" << branchTargetAddress << ")"
 					<< std::endl;
 			}
 
@@ -1488,9 +1501,9 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 		if (targetImgId != ldImgId)
 		{
 			CERR_ERROR
-				<< "Jump from .plt stub does not target dynamic linker: "
-				<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-				<< " -> " << targetImgId << " " << GetInsOffset(branchTargetAddress, targetImg)
+				<< "[PLT] Jump from .plt stub does not target dynamic linker: "
+				<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
+				<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress) << " (" << branchTargetAddress << ")"
 				<< std::endl;
 
 			PIN_ExitProcess(-1);
@@ -1499,8 +1512,8 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 		_pltState = PLT_STATE_LINKING;
 		CERR_DEBUG
 			<< "[PLT] Switching to PLT_STATE_LINKING: "
-			<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-			<< " -> " << targetImgId << " " << GetInsOffset(branchTargetAddress, targetImg)
+			<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
+			<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress) << " (" << branchTargetAddress << ")"
 			<< std::endl;
 
 
@@ -1521,9 +1534,9 @@ VOID HandleGenericJmp(ADDRINT branchTargetAddress, CONTEXT* context, ADDRINT ip,
 		// Sanity check
 		if (img->imageId != ldImgId)
 		{
-			CERR_ERROR << "Jump from outside LD, but we are still in post-linking state: "
-				<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-				<< " -> " << targetImgId << " " << GetInsOffset(branchTargetAddress, targetImg)
+			CERR_ERROR << "[PLT] Jump from outside LD, but we are still in post-linking state: "
+				<< std::hex << img->imageId << " " << img->GetInsOffset(ip)
+				<< " -> " << targetImgId << " " << targetImg->GetInsOffset(branchTargetAddress)
 				<< std::endl;
 
 			PIN_ExitProcess(-1);
@@ -1581,8 +1594,8 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 			if (img->imageId != ldImgId)
 			{
 				CERR_ERROR
-					<< "ldCallDepth == 0, but we are not in ld at "
-					<< img->imageId << " " << std::hex << GetInsOffset(ip, img)
+					<< "[PLT] ldCallDepth == 0, but we are not in ld at "
+					<< img->imageId << " " << std::hex << img->GetInsOffset(ip) << " (" << ip << ")"
 					<< std::endl;
 			}
 
@@ -1590,7 +1603,7 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 			const ADDRINT functionAddress = PIN_GetContextReg(context, REG_RAX);
 			auto functionImage = GetImageByAddress(functionAddress);
 			const UINT32 functionImageId = functionImage->imageId;
-			const UINT64 functionOffset = GetInsOffset(functionAddress, functionImage);
+			const UINT64 functionOffset = functionImage->GetInsOffset(functionAddress);
 
 			// Map PLT address to the correct function address
 			pltToRealFctStartMap[pltAddress] = functionAddress;
@@ -1599,7 +1612,7 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 			auto oldFunctionStateIt = _functionStates.find(pltAddress);
 			if (oldFunctionStateIt == _functionStates.end())
 			{
-				CERR_ERROR << "Could not find temporary function state entry indexed with PLT offset " << std::hex << pltAddress << std::endl;
+				CERR_ERROR << "[PLT] Could not find temporary function state entry indexed with PLT offset " << std::hex << pltAddress << std::endl;
 				return;
 			}
 
@@ -1633,7 +1646,7 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 			CERR_DEBUG
 				<< "[PLT] Switching to PLT_STATE_LINKING_DONE: "
 				<< std::hex
-				<< " -> " << functionImageId << " " << GetInsOffset(functionAddress, functionImage)
+				<< " waiting for reaching resolved function " << functionImageId << " " << functionImage->GetInsOffset(functionAddress) << " (" << functionAddress << ")"
 				<< std::endl;
 
 		}
@@ -1646,11 +1659,15 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 	{
 		if (libcImgId == 0)
 		{
-			CERR_DEBUG << "Unbalanced callstack, skipping return at " << img->imageId << " " << std::hex << GetInsOffset(ip, img) << ". Likely a call ld->libc was ignored" << std::endl;
+			CERR_DEBUG << "Unbalanced callstack, skipping return at "
+				<< img->imageId << " " << std::hex << img->GetInsOffset(ip)
+				<< ". Likely a call ld->libc was ignored"
+				<< std::endl;
 		}
 		else
 		{
-			CERR_WARNING << "Unbalanced callstack, skipping return at " << img->imageId << " " << std::hex << GetInsOffset(ip, img) << std::endl;
+			CERR_WARNING << "Unbalanced callstack, skipping return at " << img->imageId << " " << std::hex << img->GetInsOffset(ip)
+				<< std::endl;
 		}
 		return;
 	}
@@ -1659,7 +1676,7 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 	// Cleanup stack frame
 	if (stackFrames.empty())
 	{
-		CERR_WARNING << "Return, but empty stack frame list in " << img->imageId << " " << std::hex << GetInsOffset(ip, img) << ", skipping" << std::endl;
+		CERR_WARNING << "Return, but empty stack frame list in " << img->imageId << " " << std::hex << img->GetInsOffset(ip) << ", skipping" << std::endl;
 
 		return;
 	}
@@ -1673,7 +1690,7 @@ VOID HandleGenericRet(CONTEXT* context, ADDRINT ip, const ImageData* img)
 		CERR_WARNING
 			<< "Remaining size " << std::hex << blockIdToRemainingFrameLengthMap[currentFrame->blockId]
 			<< " of stack frame " << currentFrame->imageId << " " << currentFrame->offset
-			<< " at ret " << img->imageId << " " << GetInsOffset(ip, img)
+			<< " at ret " << img->imageId << " " << img->GetInsOffset(ip)
 			<< std::endl;
 	}
 }
@@ -1690,9 +1707,9 @@ VOID HandlePltExit(ADDRINT branchTargetAddress, ADDRINT ip, const ImageData* img
 
 	if (_pltState == PLT_STATE_INVALID)
 	{
-		CERR_ERROR << "Unexpected .plt exit: "
-			<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-			<< " -> " << img->imageId << " " << GetInsOffset(branchTargetAddress, img)
+		CERR_ERROR << "[PLT] Unexpected .plt exit: "
+			<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
+			<< " -> " << img->imageId << " " << img->GetInsOffset(branchTargetAddress) << " (" << branchTargetAddress << ")"
 			<< std::endl;
 
 		PIN_ExitProcess(-1);
@@ -1706,8 +1723,8 @@ VOID HandlePltExit(ADDRINT branchTargetAddress, ADDRINT ip, const ImageData* img
 		_pltState = PLT_STATE_INVALID;
 		CERR_DEBUG
 			<< "[PLT] Switching to PLT_STATE_INVALID: "
-			<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-			<< " -> " << GetImageByAddress(branchTargetAddress)->imageId << " " << GetInsOffset(branchTargetAddress, GetImageByAddress(branchTargetAddress))
+			<< std::hex << img->imageId << " " << img->GetInsOffset(ip) << " (" << ip << ")"
+			<< " -> " << GetImageByAddress(branchTargetAddress)->imageId << " " << GetImageByAddress(branchTargetAddress)->GetInsOffset(branchTargetAddress) << " (" << branchTargetAddress << ")"
 			<< std::endl;
 
 		return;
@@ -1727,7 +1744,7 @@ VOID HandlePltExit(ADDRINT branchTargetAddress, ADDRINT ip, const ImageData* img
 	const ADDRINT functionAddress = branchTargetAddress;
 	auto functionImage = tgtImg;
 	const UINT32 functionImageId = tgtImgId;
-	const UINT64 functionOffset = GetInsOffset(functionAddress, functionImage);
+	const UINT64 functionOffset = functionImage->GetInsOffset(functionAddress);
 
 	// Map PLT address to the correct function address
 	pltToRealFctStartMap[pltAddress] = functionAddress;
@@ -1736,7 +1753,7 @@ VOID HandlePltExit(ADDRINT branchTargetAddress, ADDRINT ip, const ImageData* img
 	auto oldFunctionStateIt = _functionStates.find(pltAddress);
 	if (oldFunctionStateIt == _functionStates.end())
 	{
-		CERR_ERROR << "Could not find temporary function state entry indexed with PLT offset " << std::hex << pltAddress << std::endl;
+		CERR_ERROR << "[PLT] Could not find temporary function state entry indexed with PLT offset " << std::hex << pltAddress << std::endl;
 		return;
 	}
 
@@ -1757,8 +1774,8 @@ VOID HandlePltExit(ADDRINT branchTargetAddress, ADDRINT ip, const ImageData* img
 	_pltState = PLT_STATE_INVALID;
 	CERR_DEBUG
 		<< "[PLT] Switching to PLT_STATE_INVALID: "
-		<< std::hex << img->imageId << " " << GetInsOffset(ip, img)
-		<< " -> " << tgtImgId << " " << GetInsOffset(branchTargetAddress, tgtImg)
+		<< std::hex << img->imageId << " " << img->GetInsOffset(ip)
+		<< " -> " << tgtImgId << " " << tgtImg->GetInsOffset(branchTargetAddress)
 		<< std::endl;
 
 }
@@ -1805,11 +1822,6 @@ const ImageData* GetImageById(UINT32 id)
 	}
 
 	return _invalidImage;
-}
-
-inline UINT64 GetInsOffset(UINT64 instructionAddress, const ImageData* image)
-{
-	return instructionAddress - image->imageStartAddress;
 }
 
 VOID SetKeySize(ADDRINT keySz) 
@@ -1886,6 +1898,7 @@ VOID ClearGlobals(ADDRINT mainStartAddress, CONTEXT* context)
 	// Re-initialize if needed
 	memoryBlocks = inputMemoryBlockData;
 	activeNonStackMemoryBlocks = inputMemoryBlockData;
+
 	// Initialize the callstack with a root entry
 	callstack.push_back(new CallstackEntry(
 		0, 0, 0, 0, 0, 0, 0
@@ -1897,7 +1910,7 @@ VOID ClearGlobals(ADDRINT mainStartAddress, CONTEXT* context)
 	// Clear the taint tag values in BDDTag object
 	ClearTags();
 
-	std::cerr << "#####################################################################" << std::endl;
+	CERR_INFO << "######################## Leaving prefix ########################" << std::endl;
 	CERR_INFO << "   Cleared all global variables." << std::endl;
 
 	_pltState = PLT_STATE_INVALID;
@@ -1908,7 +1921,7 @@ VOID ClearGlobals(ADDRINT mainStartAddress, CONTEXT* context)
 	auto targetImg = GetImageByAddress(mainStartAddress);
 	UINT32 targetImgId = targetImg->imageId;
 
-	AllocateNewStackFrame(mainStartAddress, targetImgId, GetInsOffset(mainStartAddress, targetImg), rspVal);
+	AllocateNewStackFrame(mainStartAddress, targetImgId, targetImg->GetInsOffset(mainStartAddress), rspVal);
 }
 
 VOID TaintStatusRegisters(INT32 code, VOID* v) 
@@ -1929,7 +1942,7 @@ VOID TaintStatusRegisters(INT32 code, VOID* v)
 		{
 			TaintRegResults << std::hex << ins.first << "\t";
 			TaintRegResults << std::dec << disasAddrToImgIdMap[ins.first] << "\t";
-			TaintRegResults << std::hex << GetInsOffset(ins.first, GetImageById(disasAddrToImgIdMap[ins.first])) << "\t";
+			TaintRegResults << std::hex << GetImageById(disasAddrToImgIdMap[ins.first])->GetInsOffset(ins.first) << "\t";
 			for (const auto& reg : ins.second.SecretRegs) 
 			{
 				TaintRegResults << REG_StringShort(REG_FullRegName(reg)) << "\t";
@@ -1959,7 +1972,7 @@ VOID StoreMemoryTraceAfter(UINT64 rip, UINT32 width)
 		StoreMemoryTrace();
 
 	auto image = GetImageByAddress(rip);
-	UINT64 offset = GetInsOffset(rip, image);
+	UINT64 offset = image->GetInsOffset(rip);
 
 	if (image == _invalidImage || image->imageId == ldImgId)
 		return;
@@ -2055,14 +2068,14 @@ VOID Fini(INT32 code, VOID* v)
 		_memoryAccessFile.close();
 	}
 
-	CERR_INFO << "pltToFunctionStart (plt -> start)" << std::endl;
+	CERR_DEBUG << "pltToFunctionStart (plt -> start)" << std::endl;
 	for (const auto& addr : pltToRealFctStartMap) 
 	{
 		auto pltImg = GetImageByAddress(addr.first);
-		UINT64 pltOff = GetInsOffset(addr.first, pltImg);
+		UINT64 pltOff = pltImg->GetInsOffset(addr.first);
 		auto funImg = GetImageByAddress(addr.second);
-		UINT64 funOff = GetInsOffset(addr.second, funImg);
-		CERR_INFO << "   " << std::hex << pltImg->imageId << " " << pltOff << "\t-> " << funImg->imageId << " " << funOff << std::endl;
+		UINT64 funOff = funImg->GetInsOffset(addr.second);
+		CERR_DEBUG << "   " << std::hex << pltImg->imageId << " " << pltOff << "\t-> " << funImg->imageId << " " << funOff << std::endl;
 	}
 
 	std::stringstream ss;
@@ -2112,7 +2125,7 @@ VOID Fini(INT32 code, VOID* v)
 		auto functionImage = GetImageByAddress(functionState->startAddress);
 
 		ss << std::dec << functionImage->imageId << "\t"
-			<< std::hex << GetInsOffset(functionState->startAddress, functionImage) << "\t"
+			<< std::hex << functionImage->GetInsOffset(functionState->startAddress) << "\t"
 			<< std::hex << functionState->maximumFrameSize << "\t"
 			<< std::dec << secOffs.size() << "\t";
 
@@ -2176,10 +2189,10 @@ VOID Fini(INT32 code, VOID* v)
 
 	// Create map with fresh instruction objects
 	// Each instruction only appears once.
-	std::tr1::unordered_map<UINT64, InstructionData*> mergedInstructions;
+	std::unordered_map<UINT64, InstructionData*> mergedInstructions;
 
 	// Create lookup for instruction address/memory address pairs
-	std::tr1::unordered_map<InstructionMemoryAddressPair, InstructionData*> instructionLookup;
+	std::unordered_map<InstructionMemoryAddressPair, InstructionData*> instructionLookup;
 
 	for (auto instructionData : instructions)
 	{
@@ -2188,7 +2201,7 @@ VOID Fini(INT32 code, VOID* v)
 			continue;
 
 		// Store in lookup
-		for(UINT32 i = 0; i < instructionData->instructionSize; ++i)
+		for (UINT32 i = 0; i < instructionData->instructionSize; ++i)
 			instructionLookup[InstructionMemoryAddressPair(instructionData->instructionAddress, instructionData->memoryAddress + i)] = instructionData;
 
 		// Record new merged instruction, if no one exists yet
@@ -2227,14 +2240,14 @@ VOID Fini(INT32 code, VOID* v)
 			if (mergedInstructionIt != mergedInstructions.end())
 			{
 				// Is this an access to a secret offset?
-				if(secretStackOffsets.find(instructionAndStackOffset.second) != secretStackOffsets.end())
+				if (secretStackOffsets.find(instructionAndStackOffset.second) != secretStackOffsets.end())
 					mergedInstructionIt->second->accessType |= AccessType::SECRET;
 			}
 			else
 			{
 				auto instructionImage = GetImageByAddress(instructionAndStackOffset.first);
 				CERR_ERROR << "Can't find merged instruction when checking stack access: "
-					<< std::hex << instructionImage->imageId << " " << GetInsOffset(instructionAndStackOffset.first, instructionImage)
+					<< std::hex << instructionImage->imageId << " " << instructionImage->GetInsOffset(instructionAndStackOffset.first)
 					<< std::endl;
 			}
 		}
@@ -2263,7 +2276,7 @@ VOID Fini(INT32 code, VOID* v)
 		}
 		else if (instruction->accessType == AccessType::NONE)
 		{
-			CERR_ERROR << "Instruction with access type NONE: "
+			CERR_WARNING << "Instruction with access type NONE: "
 				<< std::hex << instruction->imageId << " " << instruction->offset
 				<< std::endl;
 		}
@@ -2334,7 +2347,7 @@ VOID Fini(INT32 code, VOID* v)
 			{
 				ss << std::hex << ins.first << "\t"
 					<< std::dec << disasAddrToImgIdMap[ins.first] << "\t"
-					<< std::hex << GetInsOffset(ins.first, GetImageById(disasAddrToImgIdMap[ins.first])) << "\t";
+					<< std::hex << GetImageById(disasAddrToImgIdMap[ins.first])->GetInsOffset(ins.first) << "\t";
 				for (const auto& reg : ins.second.SecretRegs) 
 				{
 					ss << REG_StringShort(REG_FullRegName(reg)) << "\t";
@@ -2350,9 +2363,9 @@ VOID Fini(INT32 code, VOID* v)
 	if (enableTrackSyscalls) 
 	{
 		// TODO: this only considers non-stack blocks; print instructions that touch secret blocks
-		std::vector<SyscallData *> secretSyscallInputs;
+		std::vector<SyscallData*> secretSyscallInputs;
 
-		for (const auto &blk: memoryBlocks) 
+		for (const auto& blk : memoryBlocks)
 		{
 			if (blk->secret) 
 			{
@@ -2360,7 +2373,7 @@ VOID Fini(INT32 code, VOID* v)
 				ADDRINT blockStart = blk->startAddress;
 				ADDRINT blockEnd = blk->endAddress;
 
-				for (const auto &call: syscallData) 
+				for (const auto& call : syscallData)
 				{
 					// Iterate over the 6 syscall args
 					ADDRINT arg0 = call->arg0;
@@ -2522,7 +2535,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 			if (instructionType == XED_ICLASS_SUB && REG(INS_OperandReg(ins, 0)) == REG_RSP)
 			{
 				// Adjust the new end of stack frame
-				if(INS_OperandIsImmediate(ins, 1))
+				if (INS_OperandIsImmediate(ins, 1))
 				{
 					ADDRINT subSize = INS_OperandImmediate(ins, 1);
 					INS_InsertCall(ins, IPOINT_BEFORE, AFUNPTR(AdjustCurrentStackFrame),
@@ -2532,7 +2545,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 						IARG_PTR, image,
 						IARG_END);
 				}
-				else if(INS_OperandIsReg(ins, 1))
+				else if (INS_OperandIsReg(ins, 1))
 				{
 					INS_InsertCall(ins, IPOINT_BEFORE, AFUNPTR(AdjustCurrentStackFrame),
 						IARG_CONST_CONTEXT,
@@ -2544,7 +2557,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 				else
 				{
 					CERR_ERROR
-						<< std::dec << imageId << " " << std::hex << GetInsOffset(instructionAddress, image)
+						<< std::dec << imageId << " " << std::hex << image->GetInsOffset(instructionAddress)
 						<< " sub rsp, but unsupported operand type"
 						<< std::endl;
 				}
@@ -2562,7 +2575,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 
 			if (instructionType == XED_ICLASS_ADD && REG(INS_OperandReg(ins, 0)) == REG_RSP)
 			{
-				if(INS_OperandIsImmediate(ins, 1))
+				if (INS_OperandIsImmediate(ins, 1))
 				{
 					ADDRINT addSize = INS_OperandImmediate(ins, 1);
 					INS_InsertCall(ins, IPOINT_BEFORE, AFUNPTR(TrackStackFramesAddPop),
@@ -2574,7 +2587,7 @@ static void InstrumentTrace(TRACE trace, VOID* v)
 				else
 				{
 					CERR_ERROR
-						<< std::dec << imageId << " " << std::hex << GetInsOffset(instructionAddress, image)
+						<< std::dec << imageId << " " << std::hex << image->GetInsOffset(instructionAddress)
 						<< " add rsp, but unsupported operand type"
 						<< std::endl;
 				}
