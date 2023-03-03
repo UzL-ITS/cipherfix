@@ -28,6 +28,13 @@ public partial class InstructionTranslator
                 Op32R = _assembler.neg,
                 Op16R = _assembler.neg,
                 Op8R = _assembler.neg,
+            },
+            [Mnemonic.Not] = new()
+            {
+                Op64R = _assembler.not,
+                Op32R = _assembler.not,
+                Op16R = _assembler.not,
+                Op8R = _assembler.not,
             }
         };
 
@@ -152,7 +159,8 @@ public partial class InstructionTranslator
             [Mnemonic.Vpsubw] = new() { Op128RRR = _assembler.vpsubw, Op256RRR = _assembler.vpsubw },
             [Mnemonic.Vpsubd] = new() { Op128RRR = _assembler.vpsubd, Op256RRR = _assembler.vpsubd },
             [Mnemonic.Vpsubq] = new() { Op128RRR = _assembler.vpsubq, Op256RRR = _assembler.vpsubq },
-            [Mnemonic.Pand] = new() { Op128RR = _assembler.pand }
+            [Mnemonic.Pand] = new() { Op128RR = _assembler.pand },
+            [Mnemonic.Pxor] = new() { Op128RR = _assembler.pxor }
         };
         _vectorArithmeticMnemonics = _vectorArithmeticDescriptors.Keys.ToHashSet();
 

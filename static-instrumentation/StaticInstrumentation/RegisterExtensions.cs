@@ -73,6 +73,17 @@ public static class RegisterExtensions
     });
 
     /// <summary>
+    /// 64-bit -> 8-bit high sub register mapping.
+    /// </summary>
+    public static readonly Dictionary<Register, AssemblerRegister8> Register8HLookup = new(new Dictionary<Register, AssemblerRegister8>
+    {
+        [Register.RAX] = new(Register.AH),
+        [Register.RBX] = new(Register.BH),
+        [Register.RCX] = new(Register.CH),
+        [Register.RDX] = new(Register.DH),
+    });
+
+    /// <summary>
     /// *-bit -> 128-bit vector sub register mapping.
     /// </summary>
     public static readonly Dictionary<Register, AssemblerRegisterXMM> Vector128Lookup = new()

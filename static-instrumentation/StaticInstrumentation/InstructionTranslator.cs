@@ -33,14 +33,19 @@ public partial class InstructionTranslator
         // We must do this before everything else to maintain the correct base address
         Label ripLabel = _assembler.CreateLabel();
         if(instructionData.HandlesSecretData && instruction.IsIPRelativeMemoryOperand)
+        {
             _assembler.Label(ref ripLabel);
+            
+            // TODO Hack to avoid duplicate label errors in Assembler
+            _assembler.nop();
+        }
 
         // Instrument instructions that may access secret data
         isWrite = false;
         if(instructionData.HandlesSecretData)
         {
             // Analyze instruction
-            List<(Register register, int size)> registerOperands = new();
+            List<(Register register, int size, bool isHigh8Bit)> registerOperands = new();
             int width = 0;
             Register memoryOperandBaseRegister = Register.None;
             int memoryOperandIndexScale = 0;
@@ -60,12 +65,16 @@ public partial class InstructionTranslator
                             isWrite = false;
 
                         var register = instruction.GetOpRegister(i);
+                        bool isHigh8Bit = register is Register.AH or Register.BH or Register.CH or Register.DH;
                         if(register != Register.None)
-                            registerOperands.Add((register.GetFullRegister(), register.GetSize()));
+                            registerOperands.Add((register.GetFullRegister(), register.GetSize(), isHigh8Bit));
 
-                        // We don't handle -H registers at the moment
-                        if(register is Register.AH or Register.BH or Register.CH or Register.DH)
-                            Console.WriteLine($"  WARNING: Unsupported high 8-bit subregister in #{instruction.IP} {instruction}");
+                        // We don't handle -H registers in most instructions at the moment
+                        if(isHigh8Bit)
+                        {
+                            if(!(instruction.Mnemonic == Mnemonic.Mov && isWrite)) // 'mov [mem], *h' is supported
+                                Console.WriteLine($"  WARNING: Unsupported high 8-bit subregister in #{instruction.IP} {instruction}");
+                        }
                     }
                     else if(kind == OpKind.Memory)
                     {
@@ -107,11 +116,16 @@ public partial class InstructionTranslator
                     isWrite = true;
                     width = 8;
                 }
+                else if(instruction.Mnemonic is Mnemonic.Stosb)
+                {
+                    isWrite = true;
+                    width = 1;
+                }
                 else if(instruction.Mnemonic is Mnemonic.Cmp or Mnemonic.Test)
                 {
                     isWrite = false;
                 }
-                else if(instruction.Mnemonic is Mnemonic.Mul or Mnemonic.Div)
+                else if(instruction.Mnemonic is Mnemonic.Mul or Mnemonic.Imul or Mnemonic.Div)
                 {
                     isWrite = false;
                 }
@@ -327,7 +341,7 @@ public partial class InstructionTranslator
 
                     _assembler.DebugMarkMemtraceSectionEnd();
                 }
-                else if(instruction.Mnemonic is Mnemonic.Neg)
+                else if(instruction.Mnemonic is Mnemonic.Neg or Mnemonic.Not)
                 {
                     _assembler.DebugMarkMemtraceSequenceSectionBegin();
 
@@ -423,8 +437,17 @@ public partial class InstructionTranslator
                         else
                         {
                             var regOperand = new GenericAssemblerRegister(registerOperands[0].register) { PreferredWidth = width };
-                            _assembler.mov(toy1.Reg8, regOperand.Reg8);
-                            _assembler.shl(toy1.Reg32, 24);
+                            if(registerOperands[0].isHigh8Bit)
+                            {
+                                _assembler.mov(toy1.Reg32, regOperand.Reg32);
+                                _assembler.and(toy1.Reg32, 0x0000ff00u);
+                                _assembler.shl(toy1.Reg32, 16);
+                            }
+                            else
+                            {
+                                _assembler.mov(toy1.Reg8, regOperand.Reg8);
+                                _assembler.shl(toy1.Reg32, 24);
+                            }
                         }
 
                         _assembler.or(mergeToy.Reg64, toy1.Reg64);
@@ -464,8 +487,17 @@ public partial class InstructionTranslator
                         }
                         else
                         {
-                            var regOperand = new GenericAssemblerRegister(registerOperands[0].register) { PreferredWidth = width };
-                            _assembler.xor(toy1, regOperand);
+                            if(registerOperands[0].isHigh8Bit)
+                            {
+                                _assembler.shl(toy1.Reg32, 8);
+                                _assembler.xor(toy1.Reg16, RegisterExtensions.Register16Lookup[registerOperands[0].register]);
+                                _assembler.shr(toy1.Reg32, 8);
+                            }
+                            else
+                            {
+                                var regOperand = new GenericAssemblerRegister(registerOperands[0].register) { PreferredWidth = width };
+                                _assembler.xor(toy1, regOperand);
+                            }
                         }
 
                         // Encode with new mask and store
@@ -475,7 +507,7 @@ public partial class InstructionTranslator
                     _assembler.DebugMarkMemtraceSectionEnd();
                 }
                 else if(instruction.Mnemonic is Mnemonic.Movdqa or Mnemonic.Movdqu or Mnemonic.Movaps or Mnemonic.Movapd or Mnemonic.Movups or Mnemonic.Movupd
-                        or Mnemonic.Vmovdqa or Mnemonic.Vmovdqu)
+                        or Mnemonic.Vmovdqa or Mnemonic.Vmovdqu or Mnemonic.Vmovaps or Mnemonic.Vmovups)
                 {
                     _assembler.DebugMarkMemtraceSequenceSectionBegin();
 
@@ -732,6 +764,110 @@ public partial class InstructionTranslator
                         // Store data
                         _assembler.xor(toy2.Reg64, rax);
                         _assembler.mov(__qword_ptr[rdi + rcx * 8 - 8], toy2.Reg64);
+
+                        _assembler.DebugMarkMemtraceSectionEnd();
+
+                        // Next iteration?
+                        _assembler.dec(rcx);
+                        _assembler.jne(storeLoopLabel);
+
+                        _assembler.Label(ref storeEndLabel);
+                        pendingLabel = true;
+                    }
+                }
+                else if(instruction.HasRepPrefix && instruction.Mnemonic == Mnemonic.Stosb)
+                {
+                    // TODO This is a very rough unoptimized copy from 'rep stosq' above
+                    
+                    _assembler.DebugMarkMemtraceIgnoreSectionBegin();
+
+                    var storeLoopLabel = _assembler.CreateLabel();
+                    var storeSkipMaskCheckLabel = _assembler.CreateLabel();
+                    var storeEndLabel = _assembler.CreateLabel();
+
+                    // Ensure that previous status flags are preserved, if they are used
+                    registerAllocator.SaveFlags(instructionData.KeepFlags);
+
+                    using var toy1 = registerAllocator.AllocateToyRegister(preferredWidth: 8);
+                    using var toy2 = registerAllocator.AllocateToyRegister(preferredWidth: 8);
+
+                    _assembler.DebugMarkMemtraceSectionEnd();
+
+                    if(instructionData.AccessesOnlySecretBlocks && !AssemblerExtensions.DebugInsertMarkersForMemtraceEvaluation)
+                    {
+                        // Simply fill both mask buffer and data buffer with the same mask/masked data
+
+                        // Save loop counter
+                        _assembler.mov(toy2.Reg64, rcx); // Loop counter
+
+                        // Create mask
+                        MaskUtils.GenerateMask(_assembler, toy1.Reg64);
+
+                        // Write masked data
+                        _assembler.xor(rax, toy1.Reg64); // Mask data
+                        _assembler.rep.stosb();
+
+                        // Write mask
+                        _assembler.DebugMarkSkippableSectionBegin();
+                        {
+                            _assembler.mov(rcx, toy2.Reg64); // Loop counter
+                            _assembler.mov(toy2.Reg64, rax); // Masked data
+                            _assembler.mov(rax, toy1.Reg64); // Mask
+                            _assembler.sub(rdi, rcx);
+                            _assembler.add(rdi, MaskUtils.MaskBufferOffset);
+                            _assembler.rep.stosb();
+                        }
+                        _assembler.DebugMarkSkippableSectionEnd();
+
+                        // Restore data
+                        _assembler.xor(rax, toy2.Reg64);
+                        _assembler.sub(rdi, MaskUtils.MaskBufferOffset);
+                    }
+                    else
+                    {
+                        // We can't be sure that all data is treated the same, so we have to check the mask/apply the secrecy value on each iteration.
+                        // However, we can safely use the same mask for all.
+                        // TODO rdi needs to contain the final address
+
+                        // Check whether loop count is 0
+                        _assembler.test(rcx, rcx);
+                        _assembler.je(storeEndLabel);
+
+                        // Create mask
+                        MaskUtils.GenerateMask(_assembler, toy1.Reg64);
+
+                        // Loop
+                        _assembler.Label(ref storeLoopLabel);
+
+                        _assembler.DebugMarkMemtraceSequenceSectionBegin();
+
+                        if(MaskUtils.UseSecrecyBuffer)
+                        {
+                            // Store new mask
+                            MaskUtils.StoreMask(_assembler, __[rdi + rcx - 1], toy1.Reg8);
+
+                            // Apply secrecy value to new mask
+                            _assembler.mov(toy2.Reg8, toy1.Reg8);
+                            _assembler.and(toy2.Reg8, __byte_ptr[rdi + rcx - 1 + MaskUtils.SecrecyBufferOffset]);
+                        }
+                        else
+                        {
+                            // Read and check old mask
+                            _assembler.mov(toy2.Reg8, __byte_ptr[rdi + rcx - 1 + MaskUtils.MaskBufferOffset]);
+                            _assembler.test(toy2.Reg8, toy2.Reg8);
+                            _assembler.mov(toy2.Reg8, 0); // can't do XOR here, as we would override status flags
+                            _assembler.je(storeSkipMaskCheckLabel);
+
+                            // Store new mask and prepare data encoding
+                            MaskUtils.StoreMask(_assembler, __[rdi + rcx - 1], toy1.Reg8);
+                            _assembler.mov(toy2.Reg8, toy1.Reg8);
+
+                            _assembler.Label(ref storeSkipMaskCheckLabel);
+                        }
+
+                        // Store data
+                        _assembler.xor(toy2.Reg8, al);
+                        _assembler.mov(__byte_ptr[rdi + rcx - 1], toy2.Reg8);
 
                         _assembler.DebugMarkMemtraceSectionEnd();
 
@@ -1040,13 +1176,37 @@ public partial class InstructionTranslator
                     _assembler.xor(toy, __width_ptr[memoryOperand]);
 
                     // Run actual operation
-                    var destRegister = new AssemblerRegister64(registerOperands[0].register);
-                    if(width == 8)
-                        _assembler.imul(destRegister, toy.Reg64);
-                    else if(width == 4)
-                        _assembler.imul(destRegister.GetSubRegister32(), toy.Reg32);
-                    else if(width == 2)
-                        _assembler.imul(destRegister.GetSubRegister16(), toy.Reg16);
+                    if(registerOperands.Count > 0)
+                    {
+                        // imul reg, [mem] (, imm)
+                        
+                        var destRegister = new AssemblerRegister64(registerOperands[0].register);
+                        if(instruction.OpCount == 2)
+                        {
+                            if(width == 8)
+                                _assembler.imul(destRegister, toy.Reg64);
+                            else if(width == 4)
+                                _assembler.imul(destRegister.GetSubRegister32(), toy.Reg32);
+                            else if(width == 2)
+                                _assembler.imul(destRegister.GetSubRegister16(), toy.Reg16);
+                        }
+                        else if(instruction.OpCount == 3)
+                        {
+                            Console.WriteLine($"  FIXME: Need 3 operand instrumentation for {instructionData.ImageOffset:x}  '{instruction}'");
+                        }
+                    }
+                    else
+                    {
+                        // imul [mem]
+                        if(width == 8)
+                            _assembler.imul(toy.Reg64);
+                        else if(width == 4)
+                            _assembler.imul(toy.Reg32);
+                        else if(width == 2)
+                            _assembler.imul(toy.Reg16);
+                        else if(width == 1)
+                            _assembler.imul(toy.Reg8);
+                    }
                 }
                 else if(instruction.Mnemonic == Mnemonic.Mulx)
                 {
@@ -1071,6 +1231,53 @@ public partial class InstructionTranslator
                         _assembler.mulx(regOperandA, regOperandB, toy.Reg64);
                     else if(width == 4)
                         _assembler.mulx(regOperandA.GetSubRegister32(), regOperandB.GetSubRegister32(), toy.Reg32);
+                }
+                else if(instruction.Mnemonic == Mnemonic.Shrx)
+                {
+                    // shrx regA, [mem], regB
+
+                    // This operation promises to preserve flags
+                    registerAllocator.SaveFlags(instructionData.KeepFlags);
+
+                    using var toy = registerAllocator.AllocateToyRegister(preferredWidth: width);
+
+                    // Read stored value and decode it
+                    _assembler.mov(toy, __width_ptr[memoryOperand + MaskUtils.MaskBufferOffset]);
+                    if(MaskUtils.UseSecrecyBuffer && !instructionData.AccessesOnlySecretBlocks)
+                        _assembler.and(toy, __width_ptr[memoryOperand + MaskUtils.SecrecyBufferOffset]);
+                    _assembler.xor(toy, __width_ptr[memoryOperand]);
+
+                    var regOperandA = new AssemblerRegister64(registerOperands[0].register);
+                    var regOperandB = new AssemblerRegister64(registerOperands[1].register);
+
+                    // Run actual operation
+                    if(width == 8)
+                        _assembler.shrx(regOperandA, toy.Reg64, regOperandB);
+                    else if(width == 4)
+                        _assembler.shrx(regOperandA.GetSubRegister32(), toy.Reg32, regOperandB.GetSubRegister32());
+                }
+                else if(instruction.Mnemonic == Mnemonic.Rorx)
+                {
+                    // rorx reg, [mem], imm8
+
+                    // This operation promises to preserve flags
+                    registerAllocator.SaveFlags(instructionData.KeepFlags);
+
+                    using var toy = registerAllocator.AllocateToyRegister(preferredWidth: width);
+
+                    // Read stored value and decode it
+                    _assembler.mov(toy, __width_ptr[memoryOperand + MaskUtils.MaskBufferOffset]);
+                    if(MaskUtils.UseSecrecyBuffer && !instructionData.AccessesOnlySecretBlocks)
+                        _assembler.and(toy, __width_ptr[memoryOperand + MaskUtils.SecrecyBufferOffset]);
+                    _assembler.xor(toy, __width_ptr[memoryOperand]);
+
+                    var destRegister = new AssemblerRegister64(registerOperands[0].register);
+
+                    // Run actual operation
+                    if(width == 8)
+                        _assembler.rorx(destRegister, toy.Reg64, (byte)immediateOperand!.Value);
+                    else if(width == 4)
+                        _assembler.rorx(destRegister.GetSubRegister32(), toy.Reg32, (byte)immediateOperand!.Value);
                 }
                 else if(instruction.Mnemonic == Mnemonic.Div)
                 {
@@ -1111,7 +1318,10 @@ public partial class InstructionTranslator
                         _assembler.vpxor(toy.RegXMM, toy.RegXMM, __xmmword_ptr[memoryOperand]);
 
                         // Run actual operation
-                        ReproduceVectorArithmeticOperation(instruction.Mnemonic, width, destRegister, toy, null);
+                        if(registerOperands.Count == 1)
+                            ReproduceVectorArithmeticOperation(instruction.Mnemonic, width, destRegister, toy, null);
+                        else
+                            ReproduceVectorArithmeticOperation(instruction.Mnemonic, width, destRegister, new GenericAssemblerVectorRegister(registerOperands[1].register), toy);
                     }
                     else
                         throw new NotSupportedException("Unsupported vector size.");
@@ -1165,7 +1375,7 @@ public partial class InstructionTranslator
                     _assembler.xor(destRegister, __width_ptr[memoryOperand]);
                 }
                 else if(instruction.Mnemonic is Mnemonic.Movdqa or Mnemonic.Movdqu or Mnemonic.Movaps or Mnemonic.Movapd or Mnemonic.Movups or Mnemonic.Movupd
-                        or Mnemonic.Vmovdqa or Mnemonic.Vmovdqu)
+                        or Mnemonic.Vmovdqa or Mnemonic.Vmovdqu or Mnemonic.Vmovaps or Mnemonic.Vmovups)
                 {
                     var destRegister = new GenericAssemblerVectorRegister(registerOperands[0].register);
 
@@ -1472,12 +1682,14 @@ public partial class InstructionTranslator
     /// <param name="skipPreviousMaskCheck">If true, the check for an existing zero-mask is omitted.</param>
     private void UpdateMask(AssemblerMemoryOperand dataMemoryOperand, GenericAssemblerRegister maskToy, int width, bool skipPreviousMaskCheck)
     {
-        Label skipMaskUpdateLabel = _assembler.CreateLabel();
+        Label skipMaskUpdateLabel = default; // Only initialized when needed
         if(!MaskUtils.UseSecrecyBuffer)
         {
             // Do not update mask if it is zero
             if(!skipPreviousMaskCheck)
             {
+                skipMaskUpdateLabel = _assembler.CreateLabel();
+                
                 if(width == 8)
                     _assembler.test(maskToy.Reg64, maskToy.Reg64);
                 else if(width == 4)

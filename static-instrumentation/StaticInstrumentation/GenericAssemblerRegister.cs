@@ -21,4 +21,5 @@ public class GenericAssemblerRegister
     public AssemblerRegister32 Reg32 => RegisterExtensions.Register32Lookup[Register];
     public AssemblerRegister16 Reg16 => RegisterExtensions.Register16Lookup[Register];
     public AssemblerRegister8 Reg8 => RegisterExtensions.Register8LLookup[Register];
+    public AssemblerRegister8 Reg8H => RegisterExtensions.Register8HLookup[Register];
 }
