@@ -379,7 +379,7 @@ VOID InstrumentImage(IMG img, VOID* v) {
 
     for (size_t i = 0; i < IMG_NumRegions(img); ++i) {
         if (IMG_RegionHighAddress(img, i) > imageEnd) {
-            imageEnd = IMG_RegionHighAddress(img, i);
+            imageEnd = IMG_RegionHighAddress(img, i) + 1;
         }
     }
 

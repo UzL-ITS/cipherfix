@@ -41,7 +41,7 @@ ImageMemoryAccess::ImageMemoryAccess(BOOL isW, UINT32 accessSize, UINT32 insImgI
 
 ImageChunkData::ImageChunkData(int length) {
     arrayLength = length;
-    hitCounts = new int[length];
+    hitCounts = new int[length]();
 }
 
 ImageMemoryBlockRecord::ImageMemoryBlockRecord(int id, int off, int sz) {
