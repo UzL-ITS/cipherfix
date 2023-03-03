@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Iced.Intel;
 using static Iced.Intel.AssemblerRegisters;
 
@@ -24,6 +24,7 @@ public class MaskUtils
     public static bool UseAesRng = false;
     public static bool UseGf61Rng = false;
     public static bool UseGf63Rng = false;
+    public static bool UseXorShiftPlusRng = false;
 
     public static AssemblerRegisterXMM? FastRngState;
     public static AssemblerRegisterXMM? FastRngKey;
@@ -40,12 +41,12 @@ public class MaskUtils
             if(FastRngState == null || FastRngKey == null)
                 throw new Exception("Invalid RNG configuration");
 
-            assembler.vaesenc(FastRngState.Value, FastRngState.Value, FastRngKey.Value);
             assembler.vmovq(register, FastRngState.Value);
+            assembler.vaesenc(FastRngState.Value, FastRngState.Value, FastRngKey.Value);
         }
         else if(UseGf61Rng)
         {
-            if(FastRngState == null || FastRngKey == null || FastRngHelp==null)
+            if(FastRngState == null || FastRngKey == null || FastRngHelp == null)
                 throw new Exception("Invalid RNG configuration");
 
             assembler.vpclmulqdq(FastRngState.Value, FastRngState.Value, FastRngKey.Value, 0);
@@ -63,7 +64,7 @@ public class MaskUtils
         }
         else if(UseGf63Rng)
         {
-            if(FastRngState == null || FastRngKey == null || FastRngHelp==null)
+            if(FastRngState == null || FastRngKey == null || FastRngHelp == null)
                 throw new Exception("Invalid RNG configuration");
 
             assembler.vpclmulqdq(FastRngState.Value, FastRngState.Value, FastRngKey.Value, 0);
@@ -74,6 +75,31 @@ public class MaskUtils
             assembler.vpxor(FastRngState.Value, FastRngState.Value, FastRngHelp.Value); // +x  
 
             assembler.vmovq(register, FastRngState.Value);
+        }
+        else if(UseXorShiftPlusRng)
+        {
+            if(FastRngState == null || FastRngKey == null || FastRngHelp == null)
+                throw new Exception("Invalid RNG configuration");
+
+            var s = FastRngState.Value;
+            var t = FastRngKey.Value;
+            var h = FastRngHelp.Value;
+
+            assembler.vpsllq(h, t, 23); // h <- t << 23
+            assembler.vpxor(t, t, h); // t <- t ^ h
+            assembler.vpsrlq(h, t, 18); // h <- t >> 18
+            assembler.vpxor(t, t, h); // t <- t ^ h
+            assembler.vpsrlq(h, s, 5); // h <- s >> 5
+            assembler.vpxor(t, t, h); // t <- t ^ h
+            assembler.vpxor(t, t, s); // t <- t ^ s
+
+            assembler.vmovdqa(h, s); // s <-> t
+            assembler.vmovdqa(s, t);
+            assembler.vmovdqa(t, h);
+
+            assembler.vpaddq(h, s, t); // result <- s + t
+
+            assembler.vmovq(register, h);
         }
         else
         {
@@ -118,14 +144,14 @@ public class MaskUtils
             if(FastRngState == null || FastRngKey == null)
                 throw new Exception("Invalid RNG configuration");
 
-            assembler.vaesenc(FastRngState.Value, FastRngState.Value, FastRngKey.Value);
-
             if(register.PreferredWidth == 16)
                 assembler.vpbroadcastq(register.RegXMM, FastRngState.Value);
             else if(register.PreferredWidth == 32)
                 assembler.vpbroadcastq(register.RegYMM, FastRngState.Value);
             else
                 throw new InvalidOperationException("Unsupported / invalid preferred register width.");
+
+            assembler.vaesenc(FastRngState.Value, FastRngState.Value, FastRngKey.Value);
         }
         else if(UseGf61Rng)
         {
@@ -166,6 +192,36 @@ public class MaskUtils
                 assembler.vpbroadcastq(register.RegXMM, FastRngState.Value);
             else if(register.PreferredWidth == 32)
                 assembler.vpbroadcastq(register.RegYMM, FastRngState.Value);
+            else
+                throw new InvalidOperationException("Unsupported / invalid preferred register width.");
+        }
+        else if(UseXorShiftPlusRng)
+        {
+            if(FastRngState == null || FastRngKey == null || FastRngHelp == null)
+                throw new Exception("Invalid RNG configuration");
+
+            var s = FastRngState.Value;
+            var t = FastRngKey.Value;
+            var h = FastRngHelp.Value;
+
+            assembler.vpsllq(h, t, 23); // h <- t << 23
+            assembler.vpxor(t, t, h); // t <- t ^ h
+            assembler.vpsrlq(h, t, 18); // h <- t >> 18
+            assembler.vpxor(t, t, h); // t <- t ^ h
+            assembler.vpsrlq(h, s, 5); // h <- s >> 5
+            assembler.vpxor(t, t, h); // t <- t ^ h
+            assembler.vpxor(t, t, s); // t <- t ^ s
+
+            assembler.vmovdqa(h, s); // s <-> t
+            assembler.vmovdqa(s, t);
+            assembler.vmovdqa(t, h);
+
+            assembler.vpaddq(h, s, t); // result <- s + t
+
+            if(register.PreferredWidth == 16)
+                assembler.vmovdqa(register.RegXMM, h);
+            else if(register.PreferredWidth == 32)
+                assembler.vpbroadcastq(register.RegYMM, h);
             else
                 throw new InvalidOperationException("Unsupported / invalid preferred register width.");
         }

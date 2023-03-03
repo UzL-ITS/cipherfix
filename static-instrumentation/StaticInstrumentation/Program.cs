@@ -10,6 +10,7 @@ using ElfTools.Enums;
 using ElfTools.Instrumentation;
 using ElfTools.Utilities;
 using Iced.Intel;
+using StaticInstrumentation;
 
 // ReSharper disable HeuristicUnreachableCode
 #pragma warning disable 162
@@ -75,6 +76,7 @@ public static class Program
             MaskUtils.UseAesRng = argFlags.Contains("aesrng");
             MaskUtils.UseGf61Rng = argFlags.Contains("gf61rng");
             MaskUtils.UseGf63Rng = argFlags.Contains("gf63rng");
+            MaskUtils.UseXorShiftPlusRng = argFlags.Contains("xsprng");
             AssemblerExtensions.DebugInsertMarkersForMaskingCode = argFlags.Contains("debugtracemarker");
             AssemblerExtensions.DebugInsertMarkersForMemtraceEvaluation = argFlags.Contains("evalmarker");
             _debug = argFlags.Contains("dumpinstr");
@@ -102,7 +104,7 @@ public static class Program
         _bbToolResult = BbToolResult.FromFile(Path.Join(_inputDirectory, "structure.out"));
 
         // Identify available vector registers for mask generation
-        if(MaskUtils.UseAesRng || MaskUtils.UseGf61Rng || MaskUtils.UseGf63Rng)
+        if(MaskUtils.UseAesRng || MaskUtils.UseGf61Rng || MaskUtils.UseGf63Rng || MaskUtils.UseXorShiftPlusRng)
         {
             var availableVectorRegisters = RegisterExtensions.VectorRegisters
                 .Except(
@@ -133,17 +135,17 @@ public static class Program
             Console.WriteLine($"  State: {MaskUtils.FastRngState.Value.Value}");
             Console.WriteLine($"  Key: {MaskUtils.FastRngKey.Value.Value}");
 
-            if(MaskUtils.UseGf61Rng || MaskUtils.UseGf63Rng)
+            if(MaskUtils.UseGf61Rng || MaskUtils.UseGf63Rng || MaskUtils.UseXorShiftPlusRng)
             {
                 if(availableVectorRegisters.Count < 3)
                 {
-                    Console.WriteLine("ERROR: (GF(2^n) RNG) Too few available vector registers");
+                    Console.WriteLine("ERROR: (Fast RNG) Too few available vector registers");
                     return;
                 }
 
                 if(availableVectorRegisters.Count < 4)
                 {
-                    Console.WriteLine("WARNING: (GF(2^n) RNG) No remaining vector register for fast general-purpose register save/restore");
+                    Console.WriteLine("WARNING: (Fast RNG) No remaining vector register for fast general-purpose register save/restore");
                 }
 
                 MaskUtils.FastRngHelp = RegisterExtensions.Vector128Lookup[availableVectorRegisters[^3]];
