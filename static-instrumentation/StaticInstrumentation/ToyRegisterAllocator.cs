@@ -36,7 +36,7 @@ public class ToyRegisterAllocator
     /// <summary>
     /// Toy vector register for saving the original values of toy general purpose registers.
     /// </summary>
-    private AssemblerRegisterXMM? _storageVectorRegister = null;
+    private List<AssemblerRegisterXMM> _storageVectorRegisters = new();
 
     /// <summary>
     /// Toy register containing the saved status flags.
@@ -115,11 +115,40 @@ public class ToyRegisterAllocator
             throw new InvalidOperationException();
     }
 
+    /// <summary>
+    /// Tries to allocate a specific toy register.
+    /// Only returns registers that are directly available.
+    /// </summary>
+    /// <param name="register">Register.</param>
+    /// <param name="preferredWidth">Width.</param>
+    /// <returns></returns>
+    public ToyRegister AllocateSpecificToyRegister(Register register, int preferredWidth = 0)
+    {
+        // Did we already use this register?
+        if(_freedGpRegisters.Contains(register))
+        {
+            _freedGpRegisters.Remove(register);
+            return new ToyRegister(register, this) { PreferredWidth = preferredWidth, Freed = false };
+        }
+        
+        if(_instructionNoReadWriteKeepGpRegisters.Contains(register))
+        {
+            // Do not allocate it again in the future
+            _instructionNoReadWriteGpRegisters.Remove(register);
+            _instructionNoReadWriteKeepGpRegisters.Remove(register);
+
+            // The register does not need to be saved
+            return new ToyRegister(register, this) { PreferredWidth = preferredWidth, Freed = false };
+        }
+
+        return null;
+    }
+
     public ToyRegister AllocateToyRegisterUnused(IEnumerable<Register> excludedRegisters = null, int preferredWidth = 0)
     {
         if(_instructionNoReadWriteKeepGpRegisters.Except(excludedRegisters ?? Enumerable.Empty<Register>()).Any())
         {
-            var register = _instructionNoReadWriteKeepGpRegisters.Except(excludedRegisters ?? Enumerable.Empty<Register>()).First();
+            var register = _instructionNoReadWriteKeepGpRegisters.Except(excludedRegisters ?? Enumerable.Empty<Register>()).FirstAvoidingRegister(Register.RAX);
 
             // Do not allocate it again in the future
             _instructionNoReadWriteGpRegisters.Remove(register);
@@ -137,7 +166,7 @@ public class ToyRegisterAllocator
         // Short path for toy registers which were already used
         if(_freedGpRegisters.Except(excludedRegisters ?? Enumerable.Empty<Register>()).Any())
         {
-            var freedRegister = _freedGpRegisters.Except(excludedRegisters ?? Enumerable.Empty<Register>()).First();
+            var freedRegister = _freedGpRegisters.Except(excludedRegisters ?? Enumerable.Empty<Register>()).FirstAvoidingRegister(Register.RAX);
             _freedGpRegisters.Remove(freedRegister);
             return new ToyRegister(freedRegister, this) { PreferredWidth = preferredWidth, Freed = false };
         }
@@ -148,29 +177,31 @@ public class ToyRegisterAllocator
             return toyRegister;
 
         // We need to save a register
-        var register = _instructionNoReadWriteGpRegisters.Except(excludedRegisters ?? Enumerable.Empty<Register>()).First();
+        var register = _instructionNoReadWriteGpRegisters.Except(excludedRegisters ?? Enumerable.Empty<Register>()).FirstAvoidingRegister(Register.RAX);
         _instructionNoReadWriteGpRegisters.Remove(register);
 
         toyRegister = new ToyRegister(register, this) { PreferredWidth = preferredWidth, Freed = false };
 
         // We need to save this register. Just drop it into a vector register
-        if(_storageVectorRegister == null)
+        AssemblerRegisterXMM storageVectorRegister;
+        if(_savedGpRegisters.Count % 2 == 0)
         {
-            // There is no storage vector register yet, so allocate one
+            // There is no storage vector register with a free slot, so allocate new one
             // Note that it's cheaper to once do the expensive work for saving/restoring a big vector register
             // than doing this for each general purpose register. We assume that most instrumentation will
             // use more than one general purpose toy register.
 
-            _storageVectorRegister = AllocateToyVectorRegister().RegXMM;
+            storageVectorRegister = AllocateToyVectorRegister().RegXMM;
+            _storageVectorRegisters.Add(storageVectorRegister);
         }
+        else
+            storageVectorRegister = _storageVectorRegisters.Last();
 
         // Save register
-        if(_savedGpRegisters.Count == 0)
-            _assembler.vmovq(_storageVectorRegister.Value, toyRegister.Reg64);
-        else if(_savedGpRegisters.Count == 1)
-            _assembler.vpinsrq(_storageVectorRegister.Value, _storageVectorRegister.Value, toyRegister.Reg64, 1);
+        if(_savedGpRegisters.Count % 2 == 0)
+            _assembler.vmovq(storageVectorRegister, toyRegister.Reg64);
         else
-            throw new InvalidOperationException("Currently only two general purpose toy registers are supported.");
+            _assembler.vpinsrq(storageVectorRegister, storageVectorRegister, toyRegister.Reg64, 1);
 
         _savedGpRegisters.Add(register);
         return toyRegister;
@@ -229,7 +260,7 @@ public class ToyRegisterAllocator
                 // We subtract 128 to ensure that we don't write into the red zone.
                 // TODO Ensure in push/pop instrumentation that this method is indeed safe
                 // TODO Mask register value if necessary
-                Console.WriteLine("WARNING: Saving vector register"); // Remove this after addressing the above TODOs
+                Console.WriteLine($"WARNING: Saving vector register"); // Remove this after addressing the above TODOs
                 int registerIndex = register.GetNumber();
                 _assembler.vmovdqu(__ymmword_ptr[rsp - 128 - 32 * (registerIndex + 1)], asmRegister.RegYMM);
 
@@ -256,7 +287,13 @@ public class ToyRegisterAllocator
             return;
 
         // Allocate toy register
-        _flagsRegister = AllocateToyRegister();
+        bool gotRax = true;
+        _flagsRegister = AllocateSpecificToyRegister(rax);
+        if(_flagsRegister == null)
+        {
+            _flagsRegister = AllocateToyRegister();
+            gotRax = false;
+        }
 
         // Fast path for single flags
         if(flagArray.Length == 1)
@@ -285,16 +322,29 @@ public class ToyRegisterAllocator
                     throw new Exception("Unsupported flag");
             }
         }
+        else if(gotRax)
+        {
+            // With RAX, we can use the LAHF/SAHF instructions directly
+            
+             _assembler.lahf();
+        }
         else
         {
-            Console.WriteLine($"  WARNING: Using pushf to save flags: {string.Join(' ', flagArray.Select(f => f.ToString()))}");
-
+            // We didn't get RAX, but we can use LAHF/SAHF anyway. We just have to save RAX somewhere
+            _assembler.mov(_flagsRegister.Reg64, rax);
+            _assembler.lahf();
+            _assembler.xchg(_flagsRegister.Reg64, rax);
+            
+            /*
+            Console.WriteLine($"  WARNING: Using pushf to save flags: {_instructionData.ImageOffset:x} {string.Join(' ', flagArray.Select(f => f.ToString()))}");
+                
             // Save flags on the stack
             // TODO This may overwrite data in leaf functions which use the red zone, which is bad
             _assembler.DebugMarkSkippableSectionBegin();
             _assembler.pushfq();
             _assembler.pop(_flagsRegister.Reg64);
             _assembler.DebugMarkSkippableSectionEnd();
+            */
         }
 
         _savedFlags = flagArray;
@@ -302,22 +352,26 @@ public class ToyRegisterAllocator
 
     public void RestoreFlags()
     {
+        bool gotRax = _flagsRegister.Register == Register.RAX;
+        
         // Fast path for single flags
         if(_savedFlags.Length == 1)
         {
             switch(_savedFlags[0])
             {
                 case RflagsBits.OF:
-                    throw new NotSupportedException("Missing handler for O flag");
+                    _assembler.add(_flagsRegister.Reg8, 0x7f);
+                    break;
                 case RflagsBits.SF:
-                    throw new NotSupportedException("Missing handler for S flag");
+                    _assembler.add(_flagsRegister.Reg8, 0x7f);
+                    break;
                 case RflagsBits.ZF:
                     _assembler.sub(_flagsRegister.Reg8, 1);
                     break;
                 case RflagsBits.AF:
                     throw new NotSupportedException("Missing handler for A flag");
                 case RflagsBits.CF:
-                    _assembler.add(_flagsRegister.Reg8, 255);
+                    _assembler.add(_flagsRegister.Reg8, 0xff);
                     break;
                 case RflagsBits.PF:
                     throw new NotSupportedException("Missing handler for P flag");
@@ -325,13 +379,23 @@ public class ToyRegisterAllocator
                     throw new Exception("Unsupported flag");
             }
         }
+        else if(gotRax)
+        {
+            _assembler.sahf();
+        }
         else
         {
+            _assembler.xchg(_flagsRegister.Reg64, rax);
+            _assembler.sahf();
+            _assembler.mov(rax, _flagsRegister.Reg64);
+
+            /*
             // Restore flags from the stack
             _assembler.DebugMarkSkippableSectionBegin();
             _assembler.push(_flagsRegister.Reg64);
             _assembler.popfq();
             _assembler.DebugMarkSkippableSectionEnd();
+            */
         }
 
         FreeToyRegister(_flagsRegister);
@@ -355,18 +419,22 @@ public class ToyRegisterAllocator
         }
 
         // Free general purpose registers
-        switch(_savedGpRegisters.Count)
+        int savedGpIndex = 0;
+        foreach(var storageVectorRegister in _storageVectorRegisters)
         {
-            case 1:
-                _assembler.vmovq(new AssemblerRegister64(_savedGpRegisters[0]), _storageVectorRegister!.Value);
+            if(savedGpIndex < _savedGpRegisters.Count)
+            {
+                _assembler.vmovq(new AssemblerRegister64(_savedGpRegisters[savedGpIndex]), storageVectorRegister);
                 instructionsEmitted = true;
-                break;
+                ++savedGpIndex;
+            }
 
-            case 2:
-                _assembler.vpextrq(new AssemblerRegister64(_savedGpRegisters[1]), _storageVectorRegister!.Value, 1);
-                _assembler.vmovq(new AssemblerRegister64(_savedGpRegisters[0]), _storageVectorRegister.Value);
+            if(savedGpIndex < _savedGpRegisters.Count)
+            {
+                _assembler.vpextrq(new AssemblerRegister64(_savedGpRegisters[savedGpIndex]), storageVectorRegister, 1);
                 instructionsEmitted = true;
-                break;
+                ++savedGpIndex;
+            }
         }
 
         // Free vector registers
