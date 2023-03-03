@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -150,7 +150,7 @@ public static class Program
 
                 MaskUtils.FastRngHelp = RegisterExtensions.Vector128Lookup[availableVectorRegisters[^3]];
                 ToyRegisterAllocator.MarkRegisterAsReserved(MaskUtils.FastRngHelp.Value);
-                
+
                 Console.WriteLine($"  Help: {MaskUtils.FastRngHelp.Value.Value}");
             }
         }
@@ -598,13 +598,13 @@ public static class Program
                         if(otherBb.BasicBlockData.Offset + otherBb.BasicBlockData.Size - 5 < minReachableOffset)
                             continue;
 
-                        // Does this block have enough space for a 5-byte jump?
-                        int usedBytes = otherBb.GetJumpBytesLength();
-                        if(otherBb.BasicBlockData.Size - usedBytes < 5)
+                        // Does this block have enough space for another 5-byte jump?
+                        int nextAvailableOffset = otherBb.GetNextAvailableJumpOffset();
+                        if(otherBb.BasicBlockData.Size < nextAvailableOffset + 5)
                             continue;
 
                         // Find minimal offset for 5-byte jump
-                        int secondJmpBbOffset = (int)Math.Max(usedBytes, minReachableOffset - otherBb.BasicBlockData.Offset);
+                        int secondJmpBbOffset = (int)Math.Max(nextAvailableOffset, minReachableOffset - otherBb.BasicBlockData.Offset);
                         otherBb.Jumps.Add((secondJmpBbOffset, true, CurrentBasicBlockId(), 0));
                         bb.Jumps.Insert(0, (0, false, -1, checked((sbyte)(otherBb.BasicBlockData.Offset + secondJmpBbOffset - shortJmpOffset))));
 
@@ -620,13 +620,13 @@ public static class Program
                         {
                             var otherBb = bbsInstrumentationData[j];
 
-                            // Ensure that this block does still have size for its own 5-byte jump
-                            int usedBytes = otherBb.GetJumpBytesLength();
-                            if(otherBb.BasicBlockData.Size < 5 + usedBytes + 5)
+                            // Ensure that this block does still have size for another 5-byte jump
+                            int nextAvailableOffset = Math.Max(5, otherBb.GetNextAvailableJumpOffset()); // Reserve space for the block's own 5-byte jump
+                            if(otherBb.BasicBlockData.Size < nextAvailableOffset + 5)
                                 continue;
 
                             // Check whether target offset is still in reach
-                            int secondJmpBbOffset = 5 + usedBytes;
+                            int secondJmpBbOffset = nextAvailableOffset;
                             if(otherBb.BasicBlockData.Offset + secondJmpBbOffset > maxReachableOffset)
                                 break;
 
@@ -1388,7 +1388,7 @@ public static class Program
         foreach(var imageMemoryBlock in _analysisResult.ImageMemoryBlocks.Where(m => m.Value.ImageId == imageId))
         {
             // HACK In case the image addresses are not based on 0, but e.g. on 0x400000, we just assume that the first LOAD segment points to its base address
-            ulong baseAddress = elf.ProgramHeaderTable.ProgramHeaders.First().VirtualMemoryAddress + (ulong)imageMemoryBlock.Value.Offset;
+            ulong baseAddress = elf.ProgramHeaderTable.ProgramHeaders.First(h => h.Type == SegmentType.Load).VirtualMemoryAddress + (ulong)imageMemoryBlock.Value.Offset;
 
             instrumentSectionBuilder.PrivateDataBlockAddresses.Add((baseAddress, imageMemoryBlock.Value.Size));
         }
@@ -1462,8 +1462,16 @@ public static class Program
             else
             {
                 // Insert jumps
+                int currentJumpOffset = 0;
                 foreach(var jump in bb.Jumps)
                 {
+                    // Insert padding if the jumps aren't directly adjacent
+                    while(jump.bbOffset > currentJumpOffset)
+                    {
+                        textSectionPatchesWriter.Write((byte)0x90);
+                        ++currentJumpOffset;
+                    }
+                    
                     if(jump.isNearJump)
                     {
                         // Near JMP to instrumentation code
@@ -1473,6 +1481,8 @@ public static class Program
 
                         textSectionPatchesWriter.Write((byte)0xe9);
                         textSectionPatchesWriter.Write(displacement);
+
+                        currentJumpOffset += 5;
                     }
                     else
                     {
@@ -1480,6 +1490,8 @@ public static class Program
 
                         textSectionPatchesWriter.Write((byte)0xeb);
                         textSectionPatchesWriter.Write(jump.shortOffset);
+
+                        currentJumpOffset += 2;
                     }
                 }
             }
@@ -1714,7 +1726,7 @@ class BasicBlockInstrumentationData
     /// </summary>
     public List<InstructionInstrumentationData> Instructions { get; } = new();
 
-    public int GetJumpBytesLength() => Jumps.Sum(j => j.isNearJump ? 5 : 2);
+    public int GetNextAvailableJumpOffset() => Jumps.Count > 0 ? Jumps.Max(j => j.bbOffset + (j.isNearJump ? 5 : 2)) : 0;
 }
 
 class InstructionInstrumentationData
