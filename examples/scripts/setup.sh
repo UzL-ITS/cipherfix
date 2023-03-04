@@ -7,11 +7,11 @@ cd cipherfix
 
 cd examples/libsodium
 ./build.sh
-cd ../examples/mbedtls
+cd ../mbedtls
 ./build.sh
-cd ../examples/openssl
+cd ../openssl
 ./build.sh
-cd ../examples/wolfssl
+cd ../wolfssl
 ./build.sh
 
 echo "Setup complete"
