@@ -4,7 +4,7 @@ cd cipherfix
 
 cd examples/wolfssl/eddsa
 echo "-- Original: --"
-./app 3
+LD_LIBRARY_PATH=$CF_WOLFSSL_DIR/lib ./app 3
 
 echo ""
 echo "-- Instrumented: --"

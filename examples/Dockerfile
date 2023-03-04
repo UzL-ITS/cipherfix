@@ -39,10 +39,10 @@ RUN set -x \
 
 RUN set -x \
  && mkdir -p wolfssl-install \
- && wget --no-check-certificate -O /tmp/wolfssl.tar.gz "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v5.3.0-stable.tar.gz" \
+ && wget --no-check-certificate -O /tmp/wolfssl.tar.gz "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v5.4.0-stable.tar.gz" \
  && tar -xvf /tmp/wolfssl.tar.gz -C /tmp/ \
  && rm -rf /tmp/wolfssl.tar.gz \ 
- && cd /tmp/wolfssl-5.3.0-stable \
+ && cd /tmp/wolfssl-5.4.0-stable \
  && ./autogen.sh \
  && ./configure --build=x86_64-linux-gnu --prefix=/cipherfix/wolfssl-install --disable-examples --enable-curve25519 --enable-ed25519 --disable-hashdrbg --enable-singlethreaded CFLAGS="-g -O2 -fstack-reuse=none -fno-optimize-sibling-calls -mno-push-args -DCUSTOM_RAND_GENERATE_BLOCK=custom_rand_generate_block" \
  && sed -i -E 's/\/\* If building for old FIPS\. \*\//extern int custom_rand_generate_block(unsigned char* output, unsigned int sz); word64 custom_rng_counter = 0x1122334455667788; extern int custom_rand_generate_block(unsigned char* output, unsigned int sz) { int ctr = custom_rng_counter; for(unsigned int i = 0; i < sz; ++i) { if(i % 8 == 0) { ctr = custom_rng_counter; } output[i] = (unsigned char)(ctr); ctr >>= 8; } custom_rng_counter = custom_rng_counter * 13 + 7; return 0; }/' wolfcrypt/src/random.c \

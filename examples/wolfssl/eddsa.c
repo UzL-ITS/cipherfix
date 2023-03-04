@@ -1,5 +1,6 @@
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/ed25519.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
 
 #include "../cipherfix-main.h"
 
@@ -27,20 +28,39 @@ void cf_init_target(void)
 
 void cf_run_target(bool dumpResult)
 {
+    int error;
+
     classify(secretkey, sizeof(secretkey));
 
     struct ed25519_key k;
     wc_ed25519_init(&k);
-    wc_ed25519_import_private_only(secretkey, sizeof(secretkey), &k);
+    if((error = wc_ed25519_import_private_only(secretkey, sizeof(secretkey), &k)))
+    {
+        printf("Key import failed: %d %s\n", error, wc_GetErrorString(error));
+        return;
+    }
 
     uint8_t public[32] = { 0 };
-    wc_ed25519_make_public(&k, public, sizeof(public));
+    if((error = wc_ed25519_make_public(&k, public, sizeof(public))))
+    {
+        printf("Public key generation failed: %d %s\n", error, wc_GetErrorString(error));
+        return;
+    }
+    
+    if((error = wc_ed25519_import_public(public, sizeof(public), &k)))
+    {
+        printf("Public key import failed: %d %s\n", error, wc_GetErrorString(error));
+        return;
+    }
 
     unsigned char *sm = malloc(64);
-    word32 ssize;
-    wc_ed25519_sign_msg(m, sizeof(m), sm, &ssize, &k);
-
-
+    word32 ssize = 64;
+    if((error = wc_ed25519_sign_msg(m, sizeof(m), sm, &ssize, &k)))
+    {
+        printf("Signature failed: %d %s\n", error, wc_GetErrorString(error));
+        return;
+    }
+    
     if(dumpResult)
         dump_secret(sm, ssize, "signature");
 
