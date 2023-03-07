@@ -1,5 +1,5 @@
 # Build with:
-#   docker build . -t ghcr.io/uzl-its/cipherfix-examples-precompiled:latest
+#   docker build . -t ghcr.io/uzl-its/cipherfix-examples-full:latest
 
 FROM ghcr.io/uzl-its/cipherfix-examples:latest
 

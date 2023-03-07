@@ -10,6 +10,6 @@ docker build . -t cipherfix-examples:latest
 
 # The full image also contains the pre-built Cipherfix framework, and the compiled examples (allows reproducibility even on some non-Zen3 systems).
 cd full-image
-docker build . -t cipherfix-examples-precompiled:latest
+docker build . -t cipherfix-examples-full:latest
 
 echo "Done."
