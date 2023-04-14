@@ -40,4 +40,5 @@ Instruction data is split into information for tracking the status flag states a
 - `M*`: Indicates that the following information belongs to memory allocations
   - `Mm`: Function is an allocation function
   - `Mr`: Function is a reallocation function
+  - `Mc`: Function is a clear allocation function
 - `allocationAddress`: Absolute address of the (re)allocation function 
