@@ -209,7 +209,7 @@ To customize a module, please keep in mind that the static variable detection ha
 ## Paper
 
 For an extended description of the framework, please refer to our paper:
-- Jan Wichelmann, Anna Pätschke, Luca Wilke, and Thomas Eisenbarth. 2023. **Cipherfix: Mitigating Ciphertext Side-Channel Attacks in Software**. To appear at 32nd USENIX Security Symposium (USENIX Security 2023). \[[arXiv](https://arxiv.org/abs/2210.13124)\]
+- Jan Wichelmann, Anna Pätschke, Luca Wilke, and Thomas Eisenbarth. 2023. **Cipherfix: Mitigating Ciphertext Side-Channel Attacks in Software**. In 32nd USENIX Security Symposium (USENIX Security 2023). \[[paper and presentation](https://www.usenix.org/conference/usenixsecurity23/presentation/wichelmann)\]
 
 For more background and a description of ciphertext side-channel attacks see
 - Mengyuan Li, Luca Wilke, Jan Wichelmann, Thomas Eisenbarth, Radu Teodorescu and Yinqian Zhang. 2022. **A Systematic Look at Ciphertext Side Channels on AMD SEV-SNP**. In 2022 IEEE Symposium on Security and Privacy (S&P '22). \[[DOI](https://doi.org/10.1109/SP46214.2022.9833768)\]
